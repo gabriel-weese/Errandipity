@@ -38,18 +38,30 @@ packages/shared  Zod schemas, DTO types, recurrence and sorting logic
 - Edits and deletes take `?scope=occurrence` (this task only) or `?scope=series`
   (this task and all future ones).
 
-## Settings
+## Settings and goals
 
 `UserSettings` holds one row for the local user. The theme follows the operating
 system while `matchSystem` is on (the default); otherwise `theme` (light or dark) applies.
+It also stores the dashboard side and collapsed state, and the daily and weekly goals.
+
+Goal progress is counted from the task history (completions since local midnight and
+since Monday), not stored, so undoing a completion lowers it. A goal of 0 is off.
 
 ## Development notes
 
 `apps/api/prisma/dev.db` is the working database. To try the API without touching it,
-run with `DATABASE_URL="file:./smoke.db"` and a different `PORT`.
+start the API with `DATABASE_URL="file:./smoke.db"` and a different `PORT`, and point the
+web app at it with `API_PORT`.
 
 ## Moving to PostgreSQL
 
 Change the datasource `provider` in `apps/api/prisma/schema.prisma`, point
 `DATABASE_URL` at the server, and recreate the migrations. The schema avoids
 SQLite-specific types to keep this a configuration change.
+
+## Quick-add symbols
+
+The "+ Add task" line accepts symbols as separate words: `!!1`-`!!5` (priority),
+`**Mon` / `**Today` / `**Tomorrow` (day), `%%9:30` / `%%7pm` (time) and `$$Daily` /
+`$$Weekly` / `$$Weekly:MWF` (repeat). They are defined, with their help text, in
+`packages/shared/src/quickAdd.ts`; the in-app Help page is generated from that list.

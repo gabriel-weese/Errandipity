@@ -55,10 +55,33 @@ export function formatDayHeading(date: IsoDate, today: IsoDate): string {
   return [day, relative, WEEKDAYS[d.getUTCDay()]].filter(Boolean).join(' - ');
 }
 
+/** "Mon, Nov 16" */
+export function formatShortDate(date: IsoDate): string {
+  const d = toUtc(date);
+  return `${WEEKDAYS[d.getUTCDay()]!.slice(0, 3)}, ${MONTHS[d.getUTCMonth()]!.slice(0, 3)} ${d.getUTCDate()}`;
+}
+
 /** "MM/DD/YYYY" */
 export function formatUsDate(date: IsoDate): string {
   const [y, m, d] = date.split('-');
   return `${m}/${d}/${y}`;
+}
+
+/** "09:00" → "9:00 AM", "14:30" → "2:30 PM" */
+export function formatTime12(time: string): string {
+  const [h = 0, m = 0] = time.split(':').map(Number);
+  return `${h % 12 || 12}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** Local midnight at the start of the given moment's day. */
+export function startOfLocalDay(now: Date): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** Local midnight on the Monday of the given moment's week (weeks run Monday to Sunday). */
+export function startOfLocalWeek(now: Date): Date {
+  const daysSinceMonday = (now.getDay() + 6) % 7;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday);
 }
 
 /** Today's date in the machine's local timezone. */

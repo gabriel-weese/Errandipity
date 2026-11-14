@@ -9,6 +9,7 @@ import {
   updateSettingsSchema,
   updateTaskSchema,
 } from '@errandipity/shared';
+import { getProgress } from './progressService';
 import * as settings from './settingsService';
 import * as tasks from './taskService';
 
@@ -59,8 +60,11 @@ export function buildApp() {
 
   app.post('/api/tasks/:id/complete', async (request) => {
     const { id } = idParams.parse(request.params);
-    return tasks.completeTask(id);
+    const result = await tasks.completeTask(id);
+    return { ...result, progress: await getProgress() };
   });
+
+  app.get('/api/progress', async () => getProgress());
 
   app.get('/api/tasks/completed', async () => tasks.listRecentlyCompleted());
 

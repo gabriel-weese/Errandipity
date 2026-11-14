@@ -1,20 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DEFAULT_SETTINGS, todayLocal, type TaskDto } from '@errandipity/shared';
+import { DEFAULT_SETTINGS, todayLocal, type GoalProgress, type TaskDto } from '@errandipity/shared';
 import { useCallback, useMemo, useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router';
+import { Route, Routes } from 'react-router';
 import { api } from './api';
 import { AppContext, useSettings, type AppActions, type TaskDraft } from './context';
+import { HelpView } from './HelpView';
 import { SettingsView } from './SettingsView';
+import { Sidebar } from './Sidebar';
 import { TaskDialog } from './TaskDialog';
 import { useAppliedTheme } from './theme';
 import { Toasts, type ToastData } from './Toasts';
-import { AllTasksView, CompletedView, TodayView } from './views';
-
-const TABS = [
-  { to: '/', label: 'Today' },
-  { to: '/tasks', label: 'All Tasks' },
-  { to: '/completed', label: 'Recently Completed' },
-];
+import { AllTasksView, CompletedView, TodayView, UpcomingView } from './views';
 
 type NewToast = ToastData extends infer T ? (T extends { id: string } ? Omit<T, 'id'> : never) : never;
 interface EditorState {
@@ -24,21 +20,22 @@ interface EditorState {
   key: string;
 }
 
-function GearIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <circle cx="12" cy="12" r="7" />
-      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M4.9 19.1l2.2-2.2M16.9 7.1l2.2-2.2" />
-    </svg>
-  );
-}
+/** True when this completion is the one that brought the count up to the goal. */
+const justReached = ({ done, goal }: GoalProgress) => goal > 0 && done === goal;
 
 export function App() {
   const today = todayLocal();
   const queryClient = useQueryClient();
-  const refresh = useCallback(() => queryClient.invalidateQueries({ queryKey: ['tasks'] }), [queryClient]);
-  useAppliedTheme(useSettings().data ?? DEFAULT_SETTINGS);
+  const refresh = useCallback(
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['progress'] }),
+      ]),
+    [queryClient],
+  );
+  const settings = useSettings().data ?? DEFAULT_SETTINGS;
+  useAppliedTheme(settings);
 
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [toasts, setToasts] = useState<ToastData[]>([]);
@@ -51,14 +48,29 @@ export function App() {
   const onError = useCallback((error: Error) => pushToast({ kind: 'error', message: error.message }), [pushToast]);
 
   const create = useMutation({
-    mutationFn: (vars: { title: string; dueDate: string }) => api.create(vars),
+    mutationFn: api.create,
     onSuccess: refresh,
     onError,
   });
   const complete = useMutation({
     mutationFn: (task: TaskDto) => api.complete(task.id),
-    onSuccess: ({ completed, next }) => {
+    onSuccess: ({ completed, next, progress }) => {
       pushToast({ kind: 'completed', taskId: completed.id, title: completed.title, nextDate: next?.dueDate ?? null });
+      if (justReached(progress.daily)) {
+        pushToast({
+          kind: 'goal',
+          title: 'Daily goal reached!',
+          message: `Congratulations! ${progress.daily.done} tasks completed today.`,
+        });
+      }
+      if (justReached(progress.weekly)) {
+        pushToast({
+          kind: 'goal',
+          title: 'Weekly goal reached!',
+          message: `Congratulations! ${progress.weekly.done} tasks completed this week.`,
+        });
+      }
+      queryClient.setQueryData(['progress'], progress);
       return refresh();
     },
     onError,
@@ -66,7 +78,8 @@ export function App() {
   const undoComplete = useMutation({
     mutationFn: api.uncomplete,
     onSuccess: (task) => {
-      setToasts((all) => all.filter((t) => !(t.kind === 'completed' && t.taskId === task.id)));
+      // The count just dropped, so a goal toast would no longer be true.
+      setToasts((all) => all.filter((t) => t.kind !== 'goal' && !(t.kind === 'completed' && t.taskId === task.id)));
       return refresh();
     },
     onError,
@@ -88,7 +101,7 @@ export function App() {
     () => ({
       today,
       openEditor,
-      quickAdd: (title, dueDate) => create.mutateAsync({ title, dueDate }),
+      quickAdd: create.mutateAsync,
       complete: complete.mutate,
       undoComplete: undoComplete.mutate,
       reschedule: (ids, dueDate) => reschedule.mutate({ ids, dueDate }),
@@ -98,56 +111,19 @@ export function App() {
 
   return (
     <AppContext.Provider value={actions}>
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <header className="mb-6 flex items-center gap-2">
-          <h1 className="flex-1 text-2xl font-bold">Errandipity</h1>
-          <button
-            type="button"
-            onClick={() => openEditor()}
-            className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            New task
-          </button>
-          <NavLink
-            to="/settings"
-            aria-label="Settings"
-            title="Settings"
-            className={({ isActive }) =>
-              `rounded p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 ${
-                isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'
-              }`
-            }
-          >
-            <GearIcon />
-          </NavLink>
-        </header>
-
-        <nav className="mb-6 flex gap-1 border-b border-slate-200 dark:border-slate-700">
-          {TABS.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              end
-              className={({ isActive }) =>
-                `-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-                  isActive
-                    ? 'border-indigo-600 text-indigo-700 dark:border-indigo-400 dark:text-indigo-300'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
-                }`
-              }
-            >
-              {tab.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <main>
-          <Routes>
-            <Route path="/" element={<TodayView />} />
-            <Route path="/tasks" element={<AllTasksView />} />
-            <Route path="/completed" element={<CompletedView />} />
-            <Route path="/settings" element={<SettingsView />} />
-          </Routes>
+      <div className={`flex min-h-screen ${settings.sidebarSide === 'right' ? 'flex-row-reverse' : ''}`}>
+        <Sidebar />
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto max-w-3xl px-4 py-8">
+            <Routes>
+              <Route path="/" element={<UpcomingView />} />
+              <Route path="/today" element={<TodayView />} />
+              <Route path="/tasks" element={<AllTasksView />} />
+              <Route path="/completed" element={<CompletedView />} />
+              <Route path="/help" element={<HelpView />} />
+              <Route path="/settings" element={<SettingsView />} />
+            </Routes>
+          </div>
         </main>
       </div>
 

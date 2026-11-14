@@ -5,7 +5,14 @@ import { prisma } from './db';
 const SETTINGS_ID = 'default';
 
 function toDto(row: UserSettings): SettingsDto {
-  return { matchSystem: row.matchSystem, theme: row.theme === 'dark' ? 'dark' : 'light' };
+  return {
+    matchSystem: row.matchSystem,
+    theme: row.theme === 'dark' ? 'dark' : 'light',
+    sidebarSide: row.sidebarSide === 'right' ? 'right' : 'left',
+    sidebarCollapsed: row.sidebarCollapsed,
+    dailyGoal: row.dailyGoal,
+    weeklyGoal: row.weeklyGoal,
+  };
 }
 
 /** Creates the settings row with defaults on first use. */

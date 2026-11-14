@@ -1,19 +1,14 @@
-import { describeRecurrence, formatDayHeading, sortDayTasks, type TaskDto } from '@errandipity/shared';
-import type { ReactNode } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { addDays, describeRecurrence, formatDayHeading, sortDayTasks, type TaskDto } from '@errandipity/shared';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useApp, useCompletedTasks, usePendingTasks } from './context';
-import { cardClass, mutedClass, PriorityBadge, rowClass, TaskList } from './TaskRow';
+import { cardClass, CompletedBox, DetailLine, mutedClass, NotesLine, rowClass, TaskList } from './TaskRow';
 
-function Section({ title, badge, action, children }: { title: string; badge?: string; action?: ReactNode; children: ReactNode }) {
+function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h2>
-        {badge && (
-          <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-900/60 dark:text-red-200">
-            {badge}
-          </span>
-        )}
-        <span className="flex-1" />
+        <h2 className="flex-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h2>
         {action}
       </div>
       {children}
@@ -33,59 +28,144 @@ export function QueryState({ query, children }: { query: { isPending: boolean; e
   return <>{children}</>;
 }
 
-export function TodayView() {
+/** Tasks whose day has passed, with one-click rescheduling. Renders nothing when there are none. */
+function OverdueSection({ tasks }: { tasks: TaskDto[] }) {
   const { today, reschedule } = useApp();
+  const overdue = tasks.filter((t) => t.dueDate < today);
+  if (overdue.length === 0) return null;
+  return (
+    <Section
+      title={`Overdue (${overdue.length})`}
+      action={
+        <button
+          type="button"
+          onClick={() => reschedule(overdue.map((t) => t.id), today)}
+          className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+        >
+          Move all to today
+        </button>
+      }
+    >
+      <TaskList tasks={overdue} showDate />
+    </Section>
+  );
+}
+
+/** How many more days the Upcoming list gains each time the end comes near. */
+const UPCOMING_PAGE_DAYS = 30;
+
+/**
+ * Every day from today onward, without end. Only the days near the viewport are
+ * rendered; the list grows by a page whenever scrolling approaches its last day.
+ */
+export function UpcomingView() {
+  const { today } = useApp();
   const query = usePendingTasks();
   const tasks = query.data ?? [];
-  const overdue = tasks.filter((t) => t.dueDate < today);
-  const dueToday = sortDayTasks(tasks.filter((t) => t.dueDate === today));
+  const [dayCount, setDayCount] = useState(UPCOMING_PAGE_DAYS);
+
+  const byDate = useMemo(() => {
+    const map = new Map<string, TaskDto[]>();
+    for (const task of tasks) map.set(task.dueDate, [...(map.get(task.dueDate) ?? []), task]);
+    return map;
+  }, [tasks]);
+
+  // The list starts below the header and the overdue section, whose height varies.
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useLayoutEffect(() => {
+    if (!listRef.current) return;
+    const top = listRef.current.getBoundingClientRect().top + window.scrollY;
+    setScrollMargin((current) => (Math.abs(current - top) < 1 ? current : top));
+  });
+
+  const virtualizer = useWindowVirtualizer({
+    count: dayCount,
+    estimateSize: () => 110,
+    overscan: 5,
+    scrollMargin,
+  });
+  const days = virtualizer.getVirtualItems();
+  const lastVisible = days[days.length - 1]?.index ?? 0;
+  useEffect(() => {
+    if (lastVisible >= dayCount - 7) setDayCount((count) => count + UPCOMING_PAGE_DAYS);
+  }, [lastVisible, dayCount]);
 
   return (
     <QueryState query={query}>
       <div className="space-y-6">
-        {overdue.length > 0 && (
-          <Section
-            title={`Overdue (${overdue.length})`}
-            action={
-              <button
-                type="button"
-                onClick={() => reschedule(overdue.map((t) => t.id), today)}
-                className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+        <OverdueSection tasks={tasks} />
+        <div ref={listRef} className="relative" style={{ height: virtualizer.getTotalSize() }}>
+          {days.map((day) => {
+            const date = addDays(today, day.index);
+            return (
+              <div
+                key={date}
+                data-index={day.index}
+                ref={virtualizer.measureElement}
+                className="absolute left-0 top-0 w-full pb-6"
+                style={{ transform: `translateY(${day.start - scrollMargin}px)` }}
               >
-                Move all to today
-              </button>
-            }
-          >
-            <TaskList tasks={overdue} showDate />
-          </Section>
-        )}
+                <Section title={formatDayHeading(date, today)}>
+                  <TaskList tasks={sortDayTasks(byDate.get(date) ?? [])} addDate={date} />
+                </Section>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </QueryState>
+  );
+}
+
+export function TodayView() {
+  const { today } = useApp();
+  const query = usePendingTasks();
+  const tasks = query.data ?? [];
+
+  return (
+    <QueryState query={query}>
+      <div className="space-y-6">
+        <OverdueSection tasks={tasks} />
         <Section title={formatDayHeading(today, today)}>
-          {dueToday.length === 0 && <p className={`mb-2 text-sm ${mutedClass}`}>Nothing due today.</p>}
-          <TaskList tasks={dueToday} addDate={today} />
+          <TaskList tasks={sortDayTasks(tasks.filter((t) => t.dueDate === today))} addDate={today} />
         </Section>
       </div>
     </QueryState>
   );
 }
 
+const PRIORITY_HEADINGS: Record<number, string> = {
+  1: 'Priority 1 (highest)',
+  2: 'Priority 2',
+  3: 'Priority 3',
+  4: 'Priority 4',
+  5: 'Priority 5 (lowest)',
+};
+
+/** Every pending task grouped by priority, with no dates shown. */
 export function AllTasksView() {
-  const { today } = useApp();
   const query = usePendingTasks();
   const tasks = query.data ?? [];
-  // Today is always listed so there is somewhere to add a task.
-  const dates = [...new Set([today, ...tasks.map((t) => t.dueDate)])].sort();
+  // Within a priority, soonest first, so the order is stable even though dates are hidden.
+  const inGroupOrder = (a: TaskDto, b: TaskDto) =>
+    a.dueDate.localeCompare(b.dueDate) ||
+    (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99') ||
+    a.title.localeCompare(b.title);
 
   return (
     <QueryState query={query}>
       <div className="space-y-6">
-        {dates.map((date) => (
-          <Section key={date} title={formatDayHeading(date, today)} badge={date < today ? 'Overdue' : undefined}>
-            <TaskList
-              tasks={sortDayTasks(tasks.filter((t) => t.dueDate === date))}
-              addDate={date >= today ? date : undefined}
-            />
-          </Section>
-        ))}
+        {tasks.length === 0 && <p className={`text-sm ${mutedClass}`}>No tasks yet.</p>}
+        {[1, 2, 3, 4, 5].map((priority) => {
+          const group = tasks.filter((t) => t.priority === priority).sort(inGroupOrder);
+          if (group.length === 0) return null;
+          return (
+            <Section key={priority} title={PRIORITY_HEADINGS[priority] ?? `Priority ${priority}`}>
+              <TaskList tasks={group} hideSchedule />
+            </Section>
+          );
+        })}
       </div>
     </QueryState>
   );
@@ -93,21 +173,24 @@ export function AllTasksView() {
 
 function CompletedRow({ task }: { task: TaskDto }) {
   const { undoComplete } = useApp();
-  const recurrence = describeRecurrence(task.recurrence);
   return (
     <li className={rowClass}>
-      <PriorityBadge priority={task.priority} />
+      <CompletedBox priority={task.priority} />
       <div className="min-w-40 flex-1">
         <div className={`text-sm font-medium line-through ${mutedClass}`}>{task.title}</div>
-        <div className={`flex flex-wrap gap-x-3 text-xs ${mutedClass}`}>
-          {task.completedAt && <span>Completed {new Date(task.completedAt).toLocaleString()}</span>}
-          {recurrence && <span>{recurrence}</span>}
-        </div>
+        <DetailLine
+          parts={[
+            task.completedAt &&
+              `Completed ${new Date(task.completedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`,
+            describeRecurrence(task.recurrence),
+          ]}
+        />
+        <NotesLine notes={task.notes} />
       </div>
       <button
         type="button"
         onClick={() => undoComplete(task.id)}
-        className="rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
+        className="self-center rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
       >
         Undo
       </button>

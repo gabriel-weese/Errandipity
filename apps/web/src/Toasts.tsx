@@ -5,6 +5,7 @@ const TOAST_DURATION_MS = 10_000;
 
 export type ToastData =
   | { id: string; kind: 'completed'; taskId: string; title: string; nextDate: string | null }
+  | { id: string; kind: 'goal'; title: string; message: string }
   | { id: string; kind: 'error'; message: string };
 
 interface Props {
@@ -23,6 +24,19 @@ function Toast({ toast, onDismiss, onUndo }: { toast: ToastData } & Omit<Props, 
     return (
       <div className="flex items-start gap-3 rounded-lg bg-red-700 px-4 py-3 text-sm text-white shadow-lg">
         <span className="flex-1">{toast.message}</span>
+        <button type="button" onClick={() => onDismiss(toast.id)} className="font-medium underline">
+          Dismiss
+        </button>
+      </div>
+    );
+  }
+  if (toast.kind === 'goal') {
+    return (
+      <div className="flex items-start gap-3 rounded-lg bg-emerald-600 px-4 py-3 text-sm text-white shadow-lg">
+        <div className="flex-1">
+          <div className="font-semibold">{toast.title}</div>
+          <div className="text-emerald-50">{toast.message}</div>
+        </div>
         <button type="button" onClick={() => onDismiss(toast.id)} className="font-medium underline">
           Dismiss
         </button>

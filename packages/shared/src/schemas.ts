@@ -36,9 +36,16 @@ export const recurrenceSchema = z
 export type Recurrence = z.infer<typeof recurrenceSchema>;
 
 export const themeSchema = z.enum(['light', 'dark']);
+export const sidebarSideSchema = z.enum(['left', 'right']);
+/** 0 turns a goal off. */
+const goalSchema = z.number().int().min(0).max(999);
 export const updateSettingsSchema = z.object({
   matchSystem: z.boolean().optional(),
   theme: themeSchema.optional(),
+  sidebarSide: sidebarSideSchema.optional(),
+  sidebarCollapsed: z.boolean().optional(),
+  dailyGoal: goalSchema.optional(),
+  weeklyGoal: goalSchema.optional(),
 });
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 
@@ -46,8 +53,31 @@ export interface SettingsDto {
   /** When true the app follows the operating system's theme and `theme` is ignored. */
   matchSystem: boolean;
   theme: z.infer<typeof themeSchema>;
+  sidebarSide: z.infer<typeof sidebarSideSchema>;
+  sidebarCollapsed: boolean;
+  /** Tasks to complete per day; 0 = no goal. */
+  dailyGoal: number;
+  /** Tasks to complete per week (Monday to Sunday); 0 = no goal. */
+  weeklyGoal: number;
 }
-export const DEFAULT_SETTINGS: SettingsDto = { matchSystem: true, theme: 'light' };
+export const DEFAULT_SETTINGS: SettingsDto = {
+  matchSystem: true,
+  theme: 'light',
+  sidebarSide: 'left',
+  sidebarCollapsed: false,
+  dailyGoal: 5,
+  weeklyGoal: 25,
+};
+
+export interface GoalProgress {
+  /** Tasks completed so far in the period. */
+  done: number;
+  goal: number;
+}
+export interface ProgressDto {
+  daily: GoalProgress;
+  weekly: GoalProgress;
+}
 
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(200),

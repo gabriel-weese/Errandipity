@@ -32,15 +32,15 @@ interface Props {
 }
 
 export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
-  const initial: Recurrence = task?.recurrence ?? { type: 'none' };
+  const initial: Recurrence = task?.recurrence ?? draft?.recurrence ?? { type: 'none' };
   const isRecurring = task !== null && task.recurrence.type !== 'none';
   const initialAnchors = initial.type === 'monthly' ? initial.anchors : [];
 
   const [title, setTitle] = useState(task?.title ?? draft?.title ?? '');
   const [notes, setNotes] = useState(task?.notes ?? '');
-  const [priority, setPriority] = useState(task?.priority ?? 3);
+  const [priority, setPriority] = useState(task?.priority ?? draft?.priority ?? 3);
   const [dueDate, setDueDate] = useState(task?.dueDate ?? draft?.dueDate ?? today);
-  const [dueTime, setDueTime] = useState(task?.dueTime ?? '');
+  const [dueTime, setDueTime] = useState(task?.dueTime ?? draft?.dueTime ?? '');
   const [scope, setScope] = useState<EditScope>('occurrence');
   const [type, setType] = useState<Recurrence['type']>(initial.type);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>(initial.type === 'weekly' ? initial.daysOfWeek : []);

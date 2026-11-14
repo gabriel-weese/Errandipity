@@ -1,16 +1,28 @@
 import { useState, type FormEvent } from 'react';
+import {
+  describeRecurrence,
+  formatShortDate,
+  formatTime12,
+  parseQuickAdd,
+  resolveQuickAdd,
+} from '@errandipity/shared';
+import { Link } from 'react-router';
 import { useApp } from './context';
+import { DetailLine, PRIORITY_BOX } from './TaskRow';
 
-/** A one-line "add task" row for the bottom of a day's list. */
+/**
+ * A one-line "add task" row for the bottom of a day's list. Symbols in the text
+ * set the priority, day, time and repeat (see parseQuickAdd and the Help page).
+ */
 export function QuickAdd({ date }: { date: string }) {
-  const { openEditor, quickAdd } = useApp();
+  const { today, openEditor, quickAdd } = useApp();
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
+  const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
 
   const close = () => {
     setOpen(false);
-    setTitle('');
+    setText('');
   };
 
   if (!open) {
@@ -18,21 +30,22 @@ export function QuickAdd({ date }: { date: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+        className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
       >
-        <span aria-hidden="true">+</span> Add task
+        <span aria-hidden="true" className="w-4 text-center">+</span> Add task
       </button>
     );
   }
 
+  const task = resolveQuickAdd(parseQuickAdd(text), date, today);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const name = title.trim();
-    if (!name || busy) return;
+    if (!task.title || busy) return;
     setBusy(true);
     try {
-      await quickAdd(name, date);
-      setTitle('');
+      await quickAdd(task);
+      setText('');
     } catch {
       // The failure is reported as a toast; keep the text so it can be retried.
     } finally {
@@ -43,32 +56,60 @@ export function QuickAdd({ date }: { date: string }) {
   return (
     <form
       onSubmit={submit}
-      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && !title.trim() && close()}
-      className="flex items-center gap-2 px-3 py-1.5"
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && !text.trim() && close()}
+      className="px-3 py-1.5"
     >
-      <input
-        autoFocus
-        aria-label={`Task name for ${date}`}
-        placeholder="Task name"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => e.key === 'Escape' && close()}
-        className="min-w-0 flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
-      />
-      <button
-        type="button"
-        aria-label="Open the full task form"
-        title="More options"
-        onClick={() => {
-          openEditor(undefined, { title: title.trim(), dueDate: date });
-          close();
-        }}
-        className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-      >
-        <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
+      <div className="flex items-center gap-3">
+        {/* Previews the checkbox colour once a priority symbol is recognised. */}
+        <span
+          aria-hidden="true"
+          title={task.priority ? `Priority ${task.priority}` : undefined}
+          className={`size-4 shrink-0 rounded border-2 ${
+            task.priority ? PRIORITY_BOX[task.priority] : 'border-dashed border-slate-300 dark:border-slate-600'
+          }`}
+        />
+        <input
+          autoFocus
+          aria-label={`Task name for ${date}`}
+          placeholder="Task name"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && close()}
+          className="min-w-0 flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+        />
+        <Link
+          to="/help"
+          aria-label="Quick-add symbols help"
+          title="Symbols: !! priority, ** day, %% time, $$ repeat"
+          className="rounded px-1.5 text-sm font-semibold text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+        >
+          ?
+        </Link>
+        <button
+          type="button"
+          aria-label="Open the full task form"
+          title="More options"
+          onClick={() => {
+            openEditor(undefined, task);
+            close();
+          }}
+          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+        >
+          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      </div>
+      {/* What the symbols typed so far will set. */}
+      <div className="pl-7" aria-live="polite">
+        <DetailLine
+          parts={[
+            task.dueDate !== date && formatShortDate(task.dueDate),
+            task.dueTime && formatTime12(task.dueTime),
+            describeRecurrence(task.recurrence),
+          ]}
+        />
+      </div>
     </form>
   );
 }

@@ -1,6 +1,7 @@
 import type {
   CreateTaskInput,
   EditScope,
+  ProgressDto,
   SettingsDto,
   TaskDto,
   UpdateSettingsInput,
@@ -27,12 +28,13 @@ export const api = {
   update: (id: string, scope: EditScope, input: UpdateTaskInput) =>
     request<TaskDto>(`/tasks/${id}?scope=${scope}`, 'PATCH', input),
   complete: (id: string) =>
-    request<{ completed: TaskDto; next: TaskDto | null }>(`/tasks/${id}/complete`, 'POST'),
+    request<{ completed: TaskDto; next: TaskDto | null; progress: ProgressDto }>(`/tasks/${id}/complete`, 'POST'),
   uncomplete: (id: string) => request<TaskDto>(`/tasks/${id}/uncomplete`, 'POST'),
   reschedule: (ids: string[], dueDate: string) =>
     request<TaskDto[]>('/tasks/reschedule', 'POST', { ids, dueDate }),
   remove: (id: string, scope: EditScope) =>
     request<{ next: TaskDto | null }>(`/tasks/${id}?scope=${scope}`, 'DELETE'),
+  getProgress: () => request<ProgressDto>('/progress'),
   getSettings: () => request<SettingsDto>('/settings'),
   updateSettings: (changes: UpdateSettingsInput) => request<SettingsDto>('/settings', 'PATCH', changes),
 };

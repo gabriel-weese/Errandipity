@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDayHeading, formatUsDate } from './dates';
+import { formatDayHeading, formatTime12, formatUsDate, startOfLocalDay, startOfLocalWeek } from './dates';
 import { nextDueDate } from './recurrence';
 import { recurrenceSchema, type Recurrence } from './schemas';
 import { sortDayTasks } from './sort';
@@ -96,6 +96,23 @@ describe('date formatting', () => {
 
   it('formats US dates', () => {
     expect(formatUsDate('2026-11-17')).toBe('11/17/2026');
+  });
+
+  it('formats times with AM and PM', () => {
+    expect(formatTime12('00:05')).toBe('12:05 AM');
+    expect(formatTime12('09:00')).toBe('9:00 AM');
+    expect(formatTime12('12:00')).toBe('12:00 PM');
+    expect(formatTime12('14:30')).toBe('2:30 PM');
+    expect(formatTime12('23:59')).toBe('11:59 PM');
+  });
+
+  it('starts the week on Monday', () => {
+    const monday = new Date(2026, 10, 9).getTime();
+    expect(startOfLocalWeek(new Date(2026, 10, 9, 0, 0)).getTime()).toBe(monday); // Monday itself
+    expect(startOfLocalWeek(new Date(2026, 10, 14, 15, 30)).getTime()).toBe(monday); // Saturday
+    expect(startOfLocalWeek(new Date(2026, 10, 15, 23, 59)).getTime()).toBe(monday); // Sunday
+    expect(startOfLocalWeek(new Date(2026, 10, 16, 0, 0)).getTime()).toBe(new Date(2026, 10, 16).getTime());
+    expect(startOfLocalDay(new Date(2026, 10, 14, 15, 30)).getTime()).toBe(new Date(2026, 10, 14).getTime());
   });
 });
 

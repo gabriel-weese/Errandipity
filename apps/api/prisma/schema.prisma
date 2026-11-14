@@ -34,6 +34,10 @@ model UserSettings {
   id          String   @id @default("default")
   matchSystem Boolean  @default(true) // follow the OS theme; `theme` is ignored while true
   theme       String   @default("light") // light | dark
+  sidebarSide      String  @default("left") // left | right
+  sidebarCollapsed Boolean @default(false)
+  dailyGoal        Int     @default(5) // completions per day; 0 = off
+  weeklyGoal       Int     @default(25) // completions per Monday-Sunday week; 0 = off
   updatedAt   DateTime @updatedAt
 }
 
