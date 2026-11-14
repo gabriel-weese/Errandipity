@@ -1,0 +1,25 @@
+{
+  "name": "errandipity",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=26"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"yarn workspace @errandipity/api dev\" \"yarn workspace @errandipity/web dev\"",
+    "db:migrate": "yarn workspace @errandipity/api db:migrate",
+    "db:generate": "yarn workspace @errandipity/api db:generate",
+    "test": "vitest run",
+    "typecheck": "yarn workspaces run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0",
+    "vite": "^8.0.0",
+    "vitest": "^5.0.0"
+  }
+}

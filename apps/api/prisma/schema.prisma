@@ -1,0 +1,60 @@
+// Kept portable to PostgreSQL: UUID string ids, no SQLite-specific types,
+// enum-like values stored as strings and validated in the application layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// The definition of a task: the template each new occurrence is copied from,
+/// plus its recurrence rule. A one-off task is a series with recurrenceType "none".
+model TaskSeries {
+  id             String    @id @default(uuid())
+  title          String
+  notes          String    @default("")
+  priority       Int       @default(3) // 1 = highest, 5 = lowest
+  dueTime        String? // "HH:mm", null = no specific time
+  recurrenceType String    @default("none") // none | daily | weekly | monthly | interval
+  daysOfWeek     String? // JSON array, 0 = Sunday
+  daysOfMonth    String? // JSON array, 1-31
+  monthlyAnchors String? // JSON array of first | middle | last
+  intervalDays   Int?
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  tasks          Task[]
+}
+
+/// Preferences for the single local user: one row with id "default".
+model UserSettings {
+  id          String   @id @default("default")
+  matchSystem Boolean  @default(true) // follow the OS theme; `theme` is ignored while true
+  theme       String   @default("light") // light | dark
+  updatedAt   DateTime @updatedAt
+}
+
+/// One occurrence. A series has at most one pending task at a time; completing
+/// it creates the next one.
+model Task {
+  id               String     @id @default(uuid())
+  seriesId         String
+  series           TaskSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  title            String
+  notes            String     @default("")
+  priority         Int
+  dueDate          String // "YYYY-MM-DD", local calendar date
+  dueTime          String? // "HH:mm"
+  status           String     @default("pending") // pending | done
+  completedAt      DateTime?
+  timesRescheduled Int        @default(0)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([status, dueDate])
+  @@index([seriesId])
+  @@index([status, completedAt])
+}
