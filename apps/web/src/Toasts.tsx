@@ -44,7 +44,7 @@ function Toast({ toast, onDismiss, onUndo }: { toast: ToastData } & Omit<Props, 
     );
   }
   return (
-    <div className="flex items-start gap-3 rounded-lg bg-slate-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-slate-700 dark:ring-1 dark:ring-slate-500">
+    <div className="flex items-start gap-3 rounded-lg bg-toast px-4 py-3 text-sm text-white shadow-lg">
       <div className="flex-1">
         <div className="font-semibold">Task Completed</div>
         <div className="text-slate-300">{toast.title}</div>

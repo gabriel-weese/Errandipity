@@ -2,6 +2,7 @@ import { describeRecurrence, formatTime12, type TaskDto } from '@errandipity/sha
 import { Fragment, type ReactNode } from 'react';
 import { useApp } from './context';
 import { QuickAdd } from './QuickAdd';
+import { RowActions } from './RowActions';
 
 /** Checkbox outline colours by priority (1 = highest). */
 export const PRIORITY_BOX: Record<number, string> = {
@@ -19,10 +20,10 @@ const PRIORITY_FILLED: Record<number, string> = {
   5: 'border-slate-400 bg-slate-400',
 };
 
-export const cardClass = 'rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800';
+export const cardClass = 'rounded-lg border border-line bg-surface';
 export const rowClass =
-  'flex flex-wrap items-start gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0 dark:border-slate-700';
-export const mutedClass = 'text-slate-500 dark:text-slate-400';
+  'flex flex-wrap items-start gap-3 border-b border-line-soft px-3 py-2 last:border-b-0';
+export const mutedClass = 'text-muted';
 
 /** The completed counterpart of a task's checkbox: ticked and filled with its priority colour. */
 export function CompletedBox({ priority }: { priority: number }) {
@@ -74,7 +75,7 @@ interface TaskRowProps {
   task: TaskDto;
   /** Show the due date under the title (for lists that mix dates). */
   showDate?: boolean;
-  /** Hide the time, the date and the reschedule controls. */
+  /** Hide the time and date, and the controls that change them. */
   hideSchedule?: boolean;
 }
 
@@ -84,7 +85,7 @@ export function TaskRow({ task, showDate = false, hideSchedule = false }: TaskRo
   const overdue = task.dueDate < today;
 
   return (
-    <li className={rowClass}>
+    <li className={`group ${rowClass}`}>
       <input
         type="checkbox"
         aria-label={`Complete ${task.title}, priority ${task.priority}`}
@@ -101,31 +102,24 @@ export function TaskRow({ task, showDate = false, hideSchedule = false }: TaskRo
             !hideSchedule && task.dueTime && formatTime12(task.dueTime),
             describeRecurrence(task.recurrence),
             task.timesRescheduled > 0 && (
-              <span className="text-amber-700 dark:text-amber-400">Rescheduled {task.timesRescheduled}×</span>
+              <span className="text-warn">Rescheduled {task.timesRescheduled}×</span>
             ),
           ]}
         />
         <NotesLine notes={task.notes} />
       </button>
-      {overdue && !hideSchedule && (
-        <div className="flex items-center gap-2 self-center">
+      <div className="flex items-center gap-2 self-center">
+        {overdue && !hideSchedule && (
           <button
             type="button"
             onClick={() => reschedule([task.id], today)}
-            className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+            className="rounded bg-accent px-2 py-1 text-xs font-medium text-on-accent hover:bg-accent-hover"
           >
             Move to today
           </button>
-          <input
-            type="date"
-            aria-label={`Reschedule ${task.title}`}
-            className="rounded border border-slate-300 bg-transparent px-1 py-0.5 text-xs dark:border-slate-600"
-            min={today}
-            value=""
-            onChange={(e) => e.target.value && reschedule([task.id], e.target.value)}
-          />
-        </div>
-      )}
+        )}
+        <RowActions task={task} schedule={!hideSchedule} />
+      </div>
     </li>
   );
 }
@@ -143,7 +137,7 @@ export function TaskList({ tasks, addDate, ...rowProps }: TaskListProps) {
         <TaskRow key={task.id} task={task} {...rowProps} />
       ))}
       {addDate && (
-        <li className="border-b border-slate-100 last:border-b-0 dark:border-slate-700">
+        <li className="border-b border-line-soft last:border-b-0">
           <QuickAdd date={addDate} />
         </li>
       )}

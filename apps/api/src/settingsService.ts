@@ -1,5 +1,5 @@
 import type { UserSettings } from '@prisma/client';
-import type { SettingsDto, UpdateSettingsInput } from '@errandipity/shared';
+import { themeSchema, type SettingsDto, type UpdateSettingsInput } from '@errandipity/shared';
 import { prisma } from './db';
 
 const SETTINGS_ID = 'default';
@@ -7,7 +7,7 @@ const SETTINGS_ID = 'default';
 function toDto(row: UserSettings): SettingsDto {
   return {
     matchSystem: row.matchSystem,
-    theme: row.theme === 'dark' ? 'dark' : 'light',
+    theme: themeSchema.catch('light').parse(row.theme),
     sidebarSide: row.sidebarSide === 'right' ? 'right' : 'left',
     sidebarCollapsed: row.sidebarCollapsed,
     dailyGoal: row.dailyGoal,

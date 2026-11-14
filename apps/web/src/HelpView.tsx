@@ -2,7 +2,7 @@ import { QUICK_ADD_HELP } from '@errandipity/shared';
 import type { ReactNode } from 'react';
 import { cardClass, mutedClass } from './TaskRow';
 
-const codeClass = 'rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.8rem] dark:bg-slate-700';
+const codeClass = 'rounded bg-raised px-1.5 py-0.5 font-mono text-[0.8rem]';
 
 /** One topic on the Help page. Add further topics as more of these. */
 function HelpSection({ title, intro, children }: { title: string; intro?: ReactNode; children: ReactNode }) {
@@ -56,7 +56,7 @@ function QuickAddSymbols() {
           </div>
         ))}
       </dl>
-      <div className="space-y-1 border-t border-slate-200 pt-4 text-sm dark:border-slate-700">
+      <div className="space-y-1 border-t border-line pt-4 text-sm">
         <p className="font-semibold">Putting them together</p>
         <p>
           <code className={codeClass}>Team sync **Mon %%9:30 $$Weekly:MWF !!2</code>

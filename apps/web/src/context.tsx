@@ -29,6 +29,8 @@ export interface AppActions {
   complete: (task: TaskDto) => void;
   undoComplete: (taskId: string) => void;
   reschedule: (ids: string[], dueDate: string) => void;
+  /** Changes a task and its future occurrences from a row's quick controls. */
+  quickEdit: (task: TaskDto, changes: { priority?: number; dueTime?: string | null }) => void;
 }
 
 export const AppContext = createContext<AppActions | null>(null);

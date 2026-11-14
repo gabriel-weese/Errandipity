@@ -7,6 +7,7 @@ import { QueryState } from './views';
 const THEMES = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
+  { value: 'dusk', label: 'Dusk' },
 ] as const;
 const SIDES = [
   { value: 'left', label: 'Left' },
@@ -76,7 +77,7 @@ function GoalRow({ label, hint, value, onSave }: { label: string; hint: string; 
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-        className="w-20 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+        className="w-20 rounded border border-line-strong bg-field px-2 py-1.5 text-sm"
       />
     </label>
   );
@@ -101,7 +102,7 @@ export function SettingsView() {
             <input
               type="checkbox"
               role="switch"
-              className="relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-slate-300 transition-colors before:absolute before:left-0.5 before:top-0.5 before:size-4 before:rounded-full before:bg-white before:transition-transform before:content-[''] checked:bg-indigo-600 checked:before:translate-x-4 dark:bg-slate-600 dark:checked:bg-indigo-500"
+              className="relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line-strong transition-colors before:absolute before:left-0.5 before:top-0.5 before:size-4 before:rounded-full before:bg-white before:transition-transform before:content-[''] checked:bg-accent checked:before:translate-x-4"
               checked={settings.matchSystem}
               onChange={(e) => save.mutate({ matchSystem: e.target.checked })}
             />
@@ -144,7 +145,7 @@ export function SettingsView() {
           />
         </SettingsCard>
 
-        {save.error && <p className="text-sm text-red-600 dark:text-red-400">Could not save: {save.error.message}</p>}
+        {save.error && <p className="text-sm text-danger">Could not save: {save.error.message}</p>}
       </div>
     </QueryState>
   );

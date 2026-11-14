@@ -8,7 +8,7 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
-        <h2 className="flex-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h2>
+        <h2 className="flex-1 text-sm font-semibold text-ink">{title}</h2>
         {action}
       </div>
       {children}
@@ -20,7 +20,7 @@ export function QueryState({ query, children }: { query: { isPending: boolean; e
   if (query.isPending) return <p className={`text-sm ${mutedClass}`}>Loading…</p>;
   if (query.error) {
     return (
-      <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+      <p className="rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger-ink">
         Could not load: {query.error.message}
       </p>
     );
@@ -40,7 +40,7 @@ function OverdueSection({ tasks }: { tasks: TaskDto[] }) {
         <button
           type="button"
           onClick={() => reschedule(overdue.map((t) => t.id), today)}
-          className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+          className="text-sm font-medium text-accent-ink hover:underline"
         >
           Move all to today
         </button>
@@ -190,7 +190,7 @@ function CompletedRow({ task }: { task: TaskDto }) {
       <button
         type="button"
         onClick={() => undoComplete(task.id)}
-        className="self-center rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
+        className="self-center rounded border border-line-strong px-2 py-1 text-xs font-medium hover:bg-raised"
       >
         Undo
       </button>

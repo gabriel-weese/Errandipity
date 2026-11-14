@@ -44,6 +44,10 @@ packages/shared  Zod schemas, DTO types, recurrence and sorting logic
 system while `matchSystem` is on (the default); otherwise `theme` (light or dark) applies.
 It also stores the dashboard side and collapsed state, and the daily and weekly goals.
 
+Themes are sets of colour tokens in `apps/web/src/index.css` (Light, Dark, Dusk). Components
+use token classes such as `bg-surface` and `text-muted`, so a new theme is one more block of
+values there plus an entry in `themeSchema` and the Settings page.
+
 Goal progress is counted from the task history (completions since local midnight and
 since Monday), not stored, so undoing a completion lowers it. A goal of 0 is off.
 

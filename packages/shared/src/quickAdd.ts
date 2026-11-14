@@ -45,7 +45,7 @@ const RELATIVE_DAYS: Record<string, number> = { today: 0, tomorrow: 1 };
 const DAY_LETTERS: Record<string, number> = { u: 0, m: 1, t: 2, w: 3, h: 4, f: 5, s: 6 };
 
 /** "9", "9:30", "21:30", "9am", "9A.M.", "9:30p" → "HH:mm", or null if it is not a time. */
-function readTime(value: string): string | null {
+export function parseTimeText(value: string): string | null {
   const match = /^(\d{1,2})(?::(\d{2}))?(?:([ap])\.?(?:m\.?)?)?$/i.exec(value);
   if (!match) return null;
   let hour = Number(match[1]);
@@ -106,7 +106,7 @@ const SYMBOLS: QuickAddSymbol[] = [
       { input: 'Dinner %%7pm', result: '"Dinner" at 7:00 PM' },
     ],
     read: (value, result) => {
-      const time = readTime(value);
+      const time = parseTimeText(value);
       if (!time) return false;
       result.dueTime = time;
       return true;

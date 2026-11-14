@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS, type GoalProgress } from '@errandipity/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router';
 import { useApp, useProgress, useSaveSettings, useSettings } from './context';
-import { CalendarIcon, CheckCircleIcon, ChevronIcon, GearIcon, HelpIcon, ListIcon, PlusIcon, SunIcon } from './icons';
+import { CalendarIcon, CheckCircleIcon, ChevronIcon, GearIcon, HelpIcon, ListIcon, LogoIcon, PlusIcon, SunIcon } from './icons';
 
 const NAV: { to: string; label: string; icon: ReactNode }[] = [
   { to: '/', label: 'Upcoming', icon: <CalendarIcon /> },
@@ -28,8 +28,8 @@ function useIsNarrow() {
 const itemClass = (active: boolean, collapsed: boolean) =>
   `flex items-center gap-3 rounded-md py-2 text-sm font-medium ${collapsed ? 'justify-center px-0' : 'px-2.5'} ${
     active
-      ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200'
-      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+      ? 'bg-accent-soft text-accent-ink'
+      : 'text-soft hover:bg-raised'
   }`;
 
 function GoalMeter({ label, short, progress, collapsed }: { label: string; short: string; progress: GoalProgress; collapsed: boolean }) {
@@ -37,12 +37,12 @@ function GoalMeter({ label, short, progress, collapsed }: { label: string; short
   if (goal <= 0) return null;
   const reached = done >= goal;
   const summary = `${label}: ${done} of ${goal} tasks completed`;
-  const countClass = reached ? 'text-emerald-600 dark:text-emerald-400' : '';
+  const countClass = reached ? 'text-ok' : '';
 
   if (collapsed) {
     return (
       <div title={summary} aria-label={summary} className="text-center text-xs leading-tight">
-        <div className="text-slate-400 dark:text-slate-500">{short}</div>
+        <div className="text-faint">{short}</div>
         <div className={`font-semibold tabular-nums ${countClass}`}>
           {done}/{goal}
         </div>
@@ -52,7 +52,7 @@ function GoalMeter({ label, short, progress, collapsed }: { label: string; short
   return (
     <div>
       <div className="mb-1 flex justify-between text-xs">
-        <span className="text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-muted">{label}</span>
         <span className={`font-semibold tabular-nums ${countClass}`}>
           {done} / {goal}
         </span>
@@ -63,10 +63,10 @@ function GoalMeter({ label, short, progress, collapsed }: { label: string; short
         aria-valuemin={0}
         aria-valuemax={goal}
         aria-valuenow={Math.min(done, goal)}
-        className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+        className="h-1.5 overflow-hidden rounded-full bg-track"
       >
         <div
-          className={`h-full rounded-full transition-[width] ${reached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+          className={`h-full rounded-full transition-[width] ${reached ? 'bg-emerald-500' : 'bg-accent'}`}
           style={{ width: `${Math.min(100, (done / goal) * 100)}%` }}
         />
       </div>
@@ -90,12 +90,13 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Dashboard"
-      className={`sticky top-0 flex h-screen shrink-0 flex-col gap-4 border-slate-200 bg-white py-4 dark:border-slate-700 dark:bg-slate-800 ${
+      className={`sticky top-0 flex h-screen shrink-0 flex-col gap-4 border-line bg-surface py-4 ${
         onRight ? 'border-l' : 'border-r'
       } ${collapsed ? 'w-14 px-2' : 'w-60 px-3'}`}
     >
-      <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between pl-2.5'}`}>
-        {!collapsed && <span className="text-lg font-bold">Errandipity</span>}
+      <div className={`flex items-center gap-2 ${collapsed ? 'flex-col' : 'pl-1.5'}`}>
+        <LogoIcon />
+        {!collapsed && <span className="flex-1 text-lg font-bold">Errandipity</span>}
         {!narrow && (
           <button
             type="button"
@@ -103,7 +104,7 @@ export function Sidebar() {
             aria-label={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
             aria-expanded={!collapsed}
             title={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
-            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+            className="rounded-md p-1.5 text-muted hover:bg-raised"
           >
             <ChevronIcon direction={chevron} />
           </button>
@@ -115,7 +116,7 @@ export function Sidebar() {
         onClick={() => openEditor()}
         aria-label="Add Task"
         title={collapsed ? 'Add Task' : undefined}
-        className={`flex items-center justify-center gap-2 rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 ${
+        className={`flex items-center justify-center gap-2 rounded-md bg-accent py-2 text-sm font-medium text-on-accent hover:bg-accent-hover ${
           collapsed ? 'px-0' : 'px-3'
         }`}
       >
@@ -140,8 +141,8 @@ export function Sidebar() {
       </nav>
 
       {showGoals && (
-        <section aria-label="Goals" className={`flex flex-col border-t border-slate-200 pt-4 dark:border-slate-700 ${collapsed ? 'gap-2' : 'gap-3 px-2.5'}`}>
-          {!collapsed && <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Goals</h2>}
+        <section aria-label="Goals" className={`flex flex-col border-t border-line pt-4 ${collapsed ? 'gap-2' : 'gap-3 px-2.5'}`}>
+          {!collapsed && <h2 className="text-xs font-semibold uppercase tracking-wide text-faint">Goals</h2>}
           <GoalMeter label="Today" short="Day" progress={progress.daily} collapsed={collapsed} />
           <GoalMeter label="This week" short="Wk" progress={progress.weekly} collapsed={collapsed} />
         </section>

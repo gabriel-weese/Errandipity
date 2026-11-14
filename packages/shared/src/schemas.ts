@@ -35,7 +35,8 @@ export const recurrenceSchema = z
   });
 export type Recurrence = z.infer<typeof recurrenceSchema>;
 
-export const themeSchema = z.enum(['light', 'dark']);
+export const themeSchema = z.enum(['light', 'dark', 'dusk']);
+export type Theme = z.infer<typeof themeSchema>;
 export const sidebarSideSchema = z.enum(['left', 'right']);
 /** 0 turns a goal off. */
 const goalSchema = z.number().int().min(0).max(999);

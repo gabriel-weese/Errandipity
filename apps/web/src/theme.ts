@@ -20,10 +20,12 @@ export function readSettingsHint(): SettingsDto | undefined {
 }
 
 function apply(settings: Pick<SettingsDto, 'matchSystem' | 'theme'>) {
-  const dark = settings.matchSystem ? systemDark().matches : settings.theme === 'dark';
+  // Matching the system only ever picks between light and dark.
+  const theme = settings.matchSystem ? (systemDark().matches ? 'dark' : 'light') : settings.theme;
   const root = document.documentElement;
-  root.dataset.theme = dark ? 'dark' : 'light';
-  root.style.colorScheme = dark ? 'dark' : 'light';
+  root.dataset.theme = theme;
+  // Native controls (date pickers, scrollbars) only know light and dark.
+  root.style.colorScheme = theme === 'light' ? 'light' : 'dark';
 }
 
 /** Keeps the page theme in sync with the settings, and with the OS when matching it. */

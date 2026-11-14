@@ -1,4 +1,121 @@
 @import 'tailwindcss';
 
-/* Dark styles follow the data-theme attribute on <html>, set from the user's settings. */
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+/*
+ * Colours are theme tokens: components use classes such as bg-surface or text-muted,
+ * and each theme below only supplies the values. To add a theme, add one block here
+ * and list it in themeSchema (packages/shared) and in the Settings page.
+ * Priority and status colours (red, orange, amber, blue, green) are the same in every theme.
+ */
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-field: var(--field);
+  --color-track: var(--track);
+  --color-overlay: var(--overlay);
+  --color-toast: var(--toast);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+  --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+}
+
+:root,
+[data-theme='light'] {
+  --page: #f8fafc; /* behind everything */
+  --surface: #ffffff; /* cards, dashboard, dialog */
+  --raised: #f1f5f9; /* hover and subtle fills */
+  --field: #ffffff; /* text inputs */
+  --track: #e2e8f0; /* progress-bar background */
+  --overlay: rgb(15 23 42 / 0.4); /* behind the dialog */
+  --toast: #0f172a;
+  --line: #e2e8f0;
+  --line-soft: #f1f5f9; /* between rows */
+  --line-strong: #cbd5e1; /* inputs */
+  --ink: #0f172a; /* main text */
+  --soft: #475569; /* labels, inactive navigation */
+  --muted: #64748b; /* secondary text */
+  --faint: #94a3b8; /* placeholders, hints */
+  --accent: #4f46e5; /* primary buttons, progress */
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-soft: #eef2ff; /* active navigation background */
+  --accent-ink: #4338ca; /* active navigation text, links */
+  --warn: #b45309;
+  --ok: #059669;
+  --danger: #dc2626;
+  --danger-ink: #991b1b;
+  --danger-soft: #fef2f2;
+  --danger-line: #fecaca;
+}
+
+[data-theme='dark'] {
+  --page: #0f172a;
+  --surface: #1e293b;
+  --raised: #334155;
+  --field: #0f172a;
+  --track: #334155;
+  --overlay: rgb(0 0 0 / 0.6);
+  --toast: #334155;
+  --line: #334155;
+  --line-soft: #334155;
+  --line-strong: #475569;
+  --ink: #f1f5f9;
+  --soft: #cbd5e1;
+  --muted: #94a3b8;
+  --faint: #64748b;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-soft: rgb(99 102 241 / 0.2);
+  --accent-ink: #c7d2fe;
+  --warn: #fbbf24;
+  --ok: #34d399;
+  --danger: #f87171;
+  --danger-ink: #fecaca;
+  --danger-soft: #450a0a;
+  --danger-line: #991b1b;
+}
+
+/* Dusk: built from #413C58, #D1D5DE and #B7B6C2; the in-between shades are mixes of those. */
+[data-theme='dusk'] {
+  --page: #413c58;
+  --surface: #4f4b65;
+  --raised: #5b5870;
+  --field: #37334b;
+  --track: #5b5870;
+  --overlay: rgb(24 22 36 / 0.6);
+  --toast: #2b2740;
+  --line: #646178;
+  --line-soft: #5b5870;
+  --line-strong: #767388;
+  --ink: #d1d5de;
+  --soft: #c4c5d0;
+  --muted: #b7b6c2;
+  --faint: #8f8da0;
+  --accent: #d1d5de;
+  --accent-hover: #e8eaef;
+  --on-accent: #413c58;
+  --accent-soft: rgb(209 213 222 / 0.16);
+  --accent-ink: #eef0f4;
+  --warn: #fbbf24;
+  --ok: #6ee7b7;
+  --danger: #fca5a5;
+  --danger-ink: #fecaca;
+  --danger-soft: #5a3044;
+  --danger-line: #8b4f63;
+}

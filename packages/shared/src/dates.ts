@@ -36,7 +36,7 @@ export function daysInMonth(date: IsoDate): number {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
 }
 
-const MONTHS = [
+export const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
@@ -50,7 +50,7 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 export function formatDayHeading(date: IsoDate, today: IsoDate): string {
   const d = toUtc(date);
   const sameYear = date.slice(0, 4) === today.slice(0, 4);
-  const day = `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}${sameYear ? '' : `, ${d.getUTCFullYear()}`}`;
+  const day = `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}${sameYear ? '' : `, ${d.getUTCFullYear()}`}`;
   const relative = date === today ? 'Today' : date === addDays(today, 1) ? 'Tomorrow' : null;
   return [day, relative, WEEKDAYS[d.getUTCDay()]].filter(Boolean).join(' - ');
 }
@@ -58,7 +58,7 @@ export function formatDayHeading(date: IsoDate, today: IsoDate): string {
 /** "Mon, Nov 16" */
 export function formatShortDate(date: IsoDate): string {
   const d = toUtc(date);
-  return `${WEEKDAYS[d.getUTCDay()]!.slice(0, 3)}, ${MONTHS[d.getUTCMonth()]!.slice(0, 3)} ${d.getUTCDate()}`;
+  return `${WEEKDAYS[d.getUTCDay()]!.slice(0, 3)}, ${MONTH_NAMES[d.getUTCMonth()]!.slice(0, 3)} ${d.getUTCDate()}`;
 }
 
 /** "MM/DD/YYYY" */

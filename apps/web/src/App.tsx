@@ -90,6 +90,13 @@ export function App() {
     onError,
   });
 
+  const quickEdit = useMutation({
+    mutationFn: (vars: { id: string; changes: { priority?: number; dueTime?: string | null } }) =>
+      api.update(vars.id, 'series', vars.changes),
+    onSuccess: refresh,
+    onError,
+  });
+
   const openEditor = useCallback(
     (task?: TaskDto, draft?: TaskDraft) =>
       setEditor({ task: task ?? null, draft, key: task?.id ?? crypto.randomUUID() }),
@@ -105,8 +112,9 @@ export function App() {
       complete: complete.mutate,
       undoComplete: undoComplete.mutate,
       reschedule: (ids, dueDate) => reschedule.mutate({ ids, dueDate }),
+      quickEdit: (task, changes) => quickEdit.mutate({ id: task.id, changes }),
     }),
-    [today, openEditor, create.mutateAsync, complete.mutate, undoComplete.mutate, reschedule.mutate],
+    [today, openEditor, create.mutateAsync, complete.mutate, undoComplete.mutate, reschedule.mutate, quickEdit.mutate],
   );
 
   return (

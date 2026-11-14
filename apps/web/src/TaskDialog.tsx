@@ -11,13 +11,13 @@ const ANCHORS: { value: MonthlyAnchor; label: string }[] = [
 ];
 
 const field =
-  'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400 ' +
-  'dark:border-slate-600 dark:bg-slate-900 dark:disabled:bg-slate-800 dark:disabled:text-slate-500';
-const label = 'flex flex-col gap-1 text-xs font-medium text-slate-600 dark:text-slate-300';
-const hint = 'text-xs text-slate-500 dark:text-slate-400';
+  'rounded border border-line-strong bg-field px-2 py-1.5 text-sm disabled:bg-raised disabled:text-faint ' +
+  '';
+const label = 'flex flex-col gap-1 text-xs font-medium text-soft';
+const hint = 'text-xs text-muted';
 const toggle = (active: boolean) =>
   `rounded px-2 py-1 text-sm disabled:opacity-50 ${
-    active ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-700'
+    active ? 'bg-accent text-on-accent' : 'bg-raised'
   }`;
 
 interface Props {
@@ -115,7 +115,7 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 dark:bg-black/60"
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-overlay p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <form
@@ -123,13 +123,13 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
         aria-modal="true"
         aria-label={task ? 'Edit task' : 'New task'}
         onSubmit={handleSubmit}
-        className="mt-16 w-full max-w-lg space-y-4 rounded-lg bg-white p-5 shadow-xl dark:bg-slate-800 dark:ring-1 dark:ring-slate-600"
+        className="mt-16 w-full max-w-lg space-y-4 rounded-lg bg-surface p-5 shadow-xl"
       >
         <h2 className="text-lg font-semibold">{task ? 'Edit task' : 'New task'}</h2>
 
         {isRecurring && (
-          <fieldset className="flex flex-wrap gap-4 rounded border border-slate-200 p-3 text-sm dark:border-slate-600">
-            <legend className="px-1 text-xs font-medium text-slate-600 dark:text-slate-300">Apply changes to</legend>
+          <fieldset className="flex flex-wrap gap-4 rounded border border-line p-3 text-sm">
+            <legend className="px-1 text-xs font-medium text-soft">Apply changes to</legend>
             <label className="flex items-center gap-2">
               <input type="radio" name="scope" checked={scope === 'occurrence'} onChange={() => setScope('occurrence')} />
               This task only
@@ -172,7 +172,7 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
           </label>
         </div>
         {dateChanged && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          <p className="text-xs text-warn">
             Changing the date counts as a reschedule{effectiveScope === 'series' && isRecurring ? ' and moves this task only' : ''}.
           </p>
         )}
@@ -281,11 +281,11 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
           )}
         </div>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         {confirmingDelete && task ? (
-          <div className="flex flex-wrap items-center gap-2 rounded border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950">
-            <span className="flex-1 text-red-800 dark:text-red-200">Delete this task?</span>
+          <div className="flex flex-wrap items-center gap-2 rounded border border-danger-line bg-danger-soft p-3 text-sm">
+            <span className="flex-1 text-danger-ink">Delete this task?</span>
             {isRecurring && (
               <button
                 type="button"
@@ -304,14 +304,14 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
             >
               {isRecurring ? 'This and all future tasks' : 'Delete'}
             </button>
-            <button type="button" onClick={() => setConfirmingDelete(false)} className="px-2 py-1 text-slate-600 dark:text-slate-300">
+            <button type="button" onClick={() => setConfirmingDelete(false)} className="px-2 py-1 text-soft">
               Keep
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
             {task && (
-              <button type="button" onClick={() => setConfirmingDelete(true)} className="text-sm text-red-600 hover:underline dark:text-red-400">
+              <button type="button" onClick={() => setConfirmingDelete(true)} className="text-sm text-danger hover:underline">
                 Delete
               </button>
             )}
@@ -319,14 +319,14 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="rounded px-3 py-1.5 text-sm text-soft hover:bg-raised"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={busy}
-              className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
             >
               {task ? 'Save changes' : 'Add task'}
             </button>
