@@ -11,6 +11,7 @@ import {
 } from '@errandipity/shared';
 import { api } from './api';
 import { useLabels, useProjects, type TaskDraft } from './context';
+import { DateField, TimeField } from './PickerFields';
 import { buildRecurrence, draftFromRule, RecurrenceFields, type RecurrenceDraft } from './RecurrenceFields';
 import { accentButtonClass, fieldClass, hintClass, labelClass, LabelToggle } from './ui';
 
@@ -129,12 +130,12 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
 
         <div className="flex flex-wrap gap-3">
           <label className={labelClass}>
-            Date (optional)
-            <input type="date" className={fieldClass} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            Date
+            <DateField name="Date" value={dueDate || null} today={today} onChange={(date) => setDueDate(date ?? '')} />
           </label>
           <label className={labelClass}>
-            Time (optional)
-            <input type="time" className={fieldClass} value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
+            Time
+            <TimeField name="Time" value={dueTime || null} onChange={(time) => setDueTime(time ?? '')} />
           </label>
           <label className={labelClass}>
             Priority

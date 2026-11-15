@@ -4,13 +4,14 @@ import {
   bulkRescheduleSchema,
   createLabelSchema,
   createProjectSchema,
+  createSectionSchema,
   createTaskSchema,
   editScopeSchema,
   listTasksQuerySchema,
   rescheduleSchema,
-  sectionSchema,
   updateLabelSchema,
   updateProjectSchema,
+  updateSectionSchema,
   updateSettingsSchema,
   updateTaskSchema,
 } from '@errandipity/shared';
@@ -94,13 +95,13 @@ export function buildApp() {
 
   app.post('/api/projects/:id/sections', async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    const section = await projects.createSection(id, sectionSchema.parse(request.body));
+    const section = await projects.createSection(id, createSectionSchema.parse(request.body));
     return reply.status(201).send(section);
   });
 
   app.patch('/api/sections/:id', async (request) => {
     const { id } = idParams.parse(request.params);
-    return projects.renameSection(id, sectionSchema.parse(request.body));
+    return projects.updateSection(id, updateSectionSchema.parse(request.body));
   });
 
   app.delete('/api/sections/:id', async (request) => {

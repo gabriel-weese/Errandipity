@@ -1,6 +1,6 @@
 import type { LabelColor, LabelDto } from '@errandipity/shared';
 import type { ReactNode } from 'react';
-import { TagIcon } from './icons';
+import { ChevronIcon, TagIcon } from './icons';
 
 // Class strings and small pieces shared by several screens.
 
@@ -32,6 +32,21 @@ export function QueryState({ query, children }: { query: { isPending: boolean; e
     );
   }
   return <>{children}</>;
+}
+
+/** The arrow of an accordion: down while its content shows, right while it is folded away. */
+export function CollapseButton({ expanded, name, onToggle }: { expanded: boolean; name: string; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={`${expanded ? 'Hide' : 'Show'} ${name}`}
+      aria-expanded={expanded}
+      className="shrink-0 rounded-md p-1.5 text-muted hover:bg-raised"
+    >
+      <ChevronIcon direction={expanded ? 'down' : 'right'} size="size-4" />
+    </button>
+  );
 }
 
 /** "3 / 8" tasks completed, over a bar that turns green when every task is done. */

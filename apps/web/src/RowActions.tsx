@@ -61,7 +61,7 @@ export function RowActions({ task, schedule, onEdit }: Props) {
         <>
           <ActionMenu label={`Change date of ${task.title}`} icon={<CalendarIcon size="size-4" />} {...menu('date')}>
             <DateMenu
-              task={task}
+              value={task.dueDate}
               today={today}
               onPick={(date) => {
                 // A first date is an edit, not a reschedule.
@@ -82,7 +82,7 @@ export function RowActions({ task, schedule, onEdit }: Props) {
           </ActionMenu>
           <ActionMenu label={`Change time of ${task.title}`} icon={<ClockIcon size="size-4" />} {...menu('time')}>
             <TimeMenu
-              task={task}
+              value={task.dueTime}
               onPick={(dueTime) => {
                 if (dueTime !== task.dueTime) quickEdit(task, { dueTime });
                 close();

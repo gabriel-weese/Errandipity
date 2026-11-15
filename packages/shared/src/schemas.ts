@@ -146,15 +146,21 @@ export const updateProjectSchema = z.object({
   description: z.string().max(5000).optional(),
   targetDate: isoDateSchema.nullable().optional(),
   sortOrder: projectSortSchema.optional(),
+  detailsCollapsed: z.boolean().optional(),
+  tasksCollapsed: z.boolean().optional(),
+  completedCollapsed: z.boolean().optional(),
 });
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
-/** For creating a section and for renaming one. */
-export const sectionSchema = z.object({ name: projectNameSchema });
-export type SectionInput = z.infer<typeof sectionSchema>;
+export const createSectionSchema = z.object({ name: projectNameSchema });
+export type CreateSectionInput = z.infer<typeof createSectionSchema>;
+export const updateSectionSchema = z.object({ name: projectNameSchema.optional(), collapsed: z.boolean().optional() });
+export type UpdateSectionInput = z.infer<typeof updateSectionSchema>;
 
 export interface SectionDto {
   id: string;
   name: string;
+  /** Folded away on the project's page. */
+  collapsed: boolean;
 }
 
 export interface ProjectDto {
@@ -164,6 +170,12 @@ export interface ProjectDto {
   description: string;
   targetDate: IsoDate | null;
   sortOrder: ProjectSort;
+  /** Which parts of the project's page are folded away: the objective, description and sort order, */
+  detailsCollapsed: boolean;
+  /** the tasks that have no section, */
+  tasksCollapsed: boolean;
+  /** and the completed tasks. */
+  completedCollapsed: boolean;
   /** In creation order. */
   sections: SectionDto[];
   /** Completed tasks in the project. */

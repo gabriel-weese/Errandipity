@@ -13,19 +13,19 @@ datasource db {
 /// The definition of a task: the template each new occurrence is copied from,
 /// plus its recurrence rule. A one-off task is a series with recurrenceType "none".
 model TaskSeries {
-  id             String    @id @default(uuid())
+  id             String          @id @default(uuid())
   title          String
-  notes          String    @default("")
-  priority       Int       @default(3) // 1 = highest, 5 = lowest
+  notes          String          @default("")
+  priority       Int             @default(3) // 1 = highest, 5 = lowest
   dueTime        String? // "HH:mm", null = no specific time
-  recurrenceType String    @default("none") // none | daily | weekly | monthly | interval
+  recurrenceType String          @default("none") // none | daily | weekly | monthly | interval
   daysOfWeek     String? // JSON array, 0 = Sunday
   daysOfMonth    String? // JSON array, 1-31
   monthlyAnchors String? // JSON array of first | middle | last
   intervalDays   Int?
   archivedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   tasks          Task[]
   labels         Label[] // the labels each new occurrence starts with
   projectId      String?
@@ -61,19 +61,19 @@ model Label {
 /// One occurrence. A series has at most one pending task at a time; completing
 /// it creates the next one.
 model Task {
-  id               String     @id @default(uuid())
+  id               String          @id @default(uuid())
   seriesId         String
-  series           TaskSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  series           TaskSeries      @relation(fields: [seriesId], references: [id], onDelete: Cascade)
   title            String
-  notes            String     @default("")
+  notes            String          @default("")
   priority         Int
   dueDate          String? // "YYYY-MM-DD", local calendar date; null = no date (never for a repeating task)
   dueTime          String? // "HH:mm"
-  status           String     @default("pending") // pending | done
+  status           String          @default("pending") // pending | done
   completedAt      DateTime?
-  timesRescheduled Int        @default(0)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  timesRescheduled Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
   labels           Label[]
   // Copied from the series, like the labels, so that completed tasks keep their place.
   projectId        String?
@@ -90,16 +90,20 @@ model Task {
 /// A goal the user is working towards: a group of tasks, optionally divided into sections.
 /// Deleting a project deletes its tasks, completed ones included.
 model Project {
-  id          String           @id @default(uuid())
-  name        String // distinct ignoring case; checked in the application layer
-  objective   String           @default("")
-  description String           @default("")
-  targetDate  String? // "YYYY-MM-DD"
-  sortOrder   String           @default("priority") // priority | date: how its task lists are ordered
-  createdAt   DateTime         @default(now())
-  sections    ProjectSection[]
-  tasks       Task[]
-  series      TaskSeries[]
+  id                 String           @id @default(uuid())
+  name               String // distinct ignoring case; checked in the application layer
+  objective          String           @default("")
+  description        String           @default("")
+  targetDate         String? // "YYYY-MM-DD"
+  sortOrder          String           @default("priority") // priority | date: how its task lists are ordered
+  // Which parts of the project's page are folded away.
+  detailsCollapsed   Boolean          @default(false) // objective, description and sort order
+  tasksCollapsed     Boolean          @default(false) // the tasks that have no section
+  completedCollapsed Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  sections           ProjectSection[]
+  tasks              Task[]
+  series             TaskSeries[]
 }
 
 /// A subdivision of a project, shown in creation order. Deleting one leaves its tasks in
@@ -109,6 +113,7 @@ model ProjectSection {
   projectId String
   project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String // distinct within the project ignoring case; checked in the application layer
+  collapsed Boolean      @default(false) // folded away on the project's page
   createdAt DateTime     @default(now())
   tasks     Task[]
   series    TaskSeries[]

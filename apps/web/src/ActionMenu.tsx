@@ -8,12 +8,16 @@ export const optionClass = (active: boolean) =>
   }`;
 
 /**
- * An icon button with a dropdown anchored to it. The dropdown is rendered at the
+ * A button with a dropdown anchored to it: an icon by default, or a form field showing its
+ * value when `buttonClass` is given. The dropdown is rendered at the
  * top of the page with fixed positioning so that neighbouring rows cannot cover it.
  */
 export function ActionMenu(props: {
   label: string;
+  /** The button's content. */
   icon: ReactNode;
+  /** Replaces the icon button's look. */
+  buttonClass?: string;
   open: boolean;
   onToggle: () => void;
   onClose: () => void;
@@ -72,7 +76,9 @@ export function ActionMenu(props: {
         aria-expanded={open}
         title={props.label}
         onClick={props.onToggle}
-        className={`rounded p-1 hover:bg-raised hover:text-ink ${open ? 'bg-raised text-ink' : 'text-faint'}`}
+        className={
+          props.buttonClass ?? `rounded p-1 hover:bg-raised hover:text-ink ${open ? 'bg-raised text-ink' : 'text-faint'}`
+        }
       >
         {props.icon}
       </button>

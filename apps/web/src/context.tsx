@@ -8,7 +8,10 @@ import {
   type SettingsDto,
   type TaskDto,
   type UpdateLabelInput,
+  type ProgressDto,
+  type ProjectDto,
   type UpdateProjectInput,
+  type UpdateSectionInput,
   type UpdateSettingsInput,
   type UpdateTaskInput,
 } from '@errandipity/shared';
@@ -82,14 +85,28 @@ export function useSaveSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.updateSettings,
-    onMutate: (changes: UpdateSettingsInput) =>
-      queryClient.setQueryData<SettingsDto>(queryKeys.settings, (current) => ({ ...(current ?? DEFAULT_SETTINGS), ...changes })),
+    onMutate: (changes: UpdateSettingsInput) => {
+      queryClient.setQueryData<SettingsDto>(queryKeys.settings, (current) => ({ ...(current ?? DEFAULT_SETTINGS), ...changes }));
+      // The dashboard reads the goals from the progress figures, so show a new goal there at once too.
+      queryClient.setQueryData<ProgressDto>(
+        queryKeys.progress,
+        (current) =>
+          current && {
+            daily: { ...current.daily, goal: changes.dailyGoal ?? current.daily.goal },
+            weekly: { ...current.weekly, goal: changes.weeklyGoal ?? current.weekly.goal },
+          },
+      );
+    },
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.settings, saved);
       // Goals are part of the progress figures.
       return queryClient.invalidateQueries({ queryKey: queryKeys.progress });
     },
-    onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+    onError: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.progress }),
+      ]),
   });
 }
 
@@ -113,29 +130,38 @@ export function useLabelActions() {
 
 /**
  * Creating, changing and deleting projects and their sections. Tasks carry their project's
- * name and their section, so the task lists reload too.
+ * name and their section, so the task lists reload too. Changes to a project or a section
+ * show at once (folding one away should not wait for the server) and are then confirmed
+ * or rolled back by the reload.
  */
 export function useProjectActions() {
   const queryClient = useQueryClient();
-  const onSuccess = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks }),
-    ]);
+  const reloadProjects = () => queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+  const onSuccess = () => Promise.all([reloadProjects(), queryClient.invalidateQueries({ queryKey: queryKeys.tasks })]);
+  const showNow = (change: (project: ProjectDto) => ProjectDto) =>
+    queryClient.setQueryData<ProjectDto[]>(queryKeys.projects, (projects) => projects?.map(change));
   return {
     create: useMutation({ mutationFn: api.createProject, onSuccess }),
     update: useMutation({
       mutationFn: ({ id, ...changes }: { id: string } & UpdateProjectInput) => api.updateProject(id, changes),
+      onMutate: ({ id, ...changes }) => void showNow((project) => (project.id === id ? { ...project, ...changes } : project)),
       onSuccess,
+      onError: reloadProjects,
     }),
     remove: useMutation({ mutationFn: api.deleteProject, onSuccess }),
     addSection: useMutation({
       mutationFn: ({ projectId, name }: { projectId: string; name: string }) => api.createSection(projectId, name),
       onSuccess,
     }),
-    renameSection: useMutation({
-      mutationFn: ({ id, name }: { id: string; name: string }) => api.renameSection(id, name),
+    updateSection: useMutation({
+      mutationFn: ({ id, ...changes }: { id: string } & UpdateSectionInput) => api.updateSection(id, changes),
+      onMutate: ({ id, ...changes }) =>
+        void showNow((project) => ({
+          ...project,
+          sections: project.sections.map((section) => (section.id === id ? { ...section, ...changes } : section)),
+        })),
       onSuccess,
+      onError: reloadProjects,
     }),
     removeSection: useMutation({ mutationFn: api.deleteSection, onSuccess }),
   };

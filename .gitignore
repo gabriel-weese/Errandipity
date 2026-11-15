@@ -5,3 +5,5 @@ dist/
 *.db-journal
 *.log
 .vite/
+CLAUDE.md
+apps/api/prisma/migrations/

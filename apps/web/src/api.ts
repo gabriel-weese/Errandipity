@@ -12,6 +12,7 @@ import type {
   TaskDto,
   UpdateLabelInput,
   UpdateProjectInput,
+  UpdateSectionInput,
   UpdateSettingsInput,
   UpdateTaskInput,
 } from '@errandipity/shared';
@@ -53,7 +54,7 @@ export const api = {
   listProjectCompleted: (id: string) => request<TaskDto[]>(`/projects/${id}/completed`),
   createSection: (projectId: string, name: string) =>
     request<SectionDto>(`/projects/${projectId}/sections`, 'POST', { name }),
-  renameSection: (id: string, name: string) => request<SectionDto>(`/sections/${id}`, 'PATCH', { name }),
+  updateSection: (id: string, changes: UpdateSectionInput) => request<SectionDto>(`/sections/${id}`, 'PATCH', changes),
   deleteSection: (id: string) => request<{ ok: true }>(`/sections/${id}`, 'DELETE'),
   getProgress: () => request<ProgressDto>('/progress'),
   getSettings: () => request<SettingsDto>('/settings'),

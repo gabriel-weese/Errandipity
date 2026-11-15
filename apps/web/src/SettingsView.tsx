@@ -110,13 +110,25 @@ function ThemePicker({ value, disabled, onChange }: { value: Theme; disabled: bo
   );
 }
 
-/** A goal count that saves when the field is left or Enter is pressed. */
+const GOAL_SAVE_DELAY_MS = 500;
+
+/** A goal count that saves shortly after it changes, and at once when the field is left or Enter is pressed. */
 function GoalRow({ label, hint, value, onSave }: { label: string; hint: string; value: number; onSave: (value: number) => void }) {
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);
+  const parsed = text.trim() === '' ? NaN : Math.min(MAX_GOAL, Math.max(0, Math.floor(Number(text))));
 
+  // Save shortly after the last change, so the field's arrows work without leaving it,
+  // while a number being typed is not saved digit by digit.
+  useEffect(() => {
+    if (!Number.isFinite(parsed) || parsed === value) return;
+    const timer = setTimeout(() => onSave(parsed), GOAL_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // onSave is left out on purpose: it is a new function on every render and must not restart the wait.
+  }, [parsed, value]);
+
+  /** On leaving the field: save now, and tidy the text (or put the saved goal back). */
   function commit() {
-    const parsed = Math.min(MAX_GOAL, Math.max(0, Math.floor(Number(text))));
     if (!Number.isFinite(parsed)) return setText(String(value));
     setText(String(parsed));
     if (parsed !== value) onSave(parsed);

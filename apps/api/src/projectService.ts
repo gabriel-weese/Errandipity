@@ -1,12 +1,13 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma, ProjectSection } from '@prisma/client';
 import {
   DEFAULT_PROJECT_SORT,
   projectSortSchema,
   type CreateProjectInput,
+  type CreateSectionInput,
   type ProjectDto,
   type SectionDto,
-  type SectionInput,
   type UpdateProjectInput,
+  type UpdateSectionInput,
 } from '@errandipity/shared';
 import { prisma } from './db';
 import { ConflictError, NotFoundError } from './errors';
@@ -15,6 +16,7 @@ const byCreation = { createdAt: 'asc' } as const;
 const projectInclude = { sections: { orderBy: byCreation } } satisfies Prisma.ProjectInclude;
 type ProjectWithSections = Prisma.ProjectGetPayload<{ include: typeof projectInclude }>;
 
+const toSectionDto = ({ id, name, collapsed }: ProjectSection): SectionDto => ({ id, name, collapsed });
 const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 function toDto(project: ProjectWithSections, counts: { done: number; total: number }): ProjectDto {
@@ -25,7 +27,10 @@ function toDto(project: ProjectWithSections, counts: { done: number; total: numb
     description: project.description,
     targetDate: project.targetDate,
     sortOrder: projectSortSchema.catch(DEFAULT_PROJECT_SORT).parse(project.sortOrder),
-    sections: project.sections.map(({ id, name }) => ({ id, name })),
+    detailsCollapsed: project.detailsCollapsed,
+    tasksCollapsed: project.tasksCollapsed,
+    completedCollapsed: project.completedCollapsed,
+    sections: project.sections.map(toSectionDto),
     ...counts,
   };
 }
@@ -101,21 +106,20 @@ function assertSectionNameFree(project: ProjectWithSections, name: string, excep
   if (taken) throw new ConflictError(`This project already has a section called "${name}"`);
 }
 
-export async function createSection(projectId: string, { name }: SectionInput): Promise<SectionDto> {
+export async function createSection(projectId: string, { name }: CreateSectionInput): Promise<SectionDto> {
   return prisma.$transaction(async (tx) => {
     assertSectionNameFree(await getProject(tx, projectId), name);
-    const section = await tx.projectSection.create({ data: { projectId, name } });
-    return { id: section.id, name: section.name };
+    return toSectionDto(await tx.projectSection.create({ data: { projectId, name } }));
   });
 }
 
-export async function renameSection(id: string, { name }: SectionInput): Promise<SectionDto> {
+/** Renames a section, folds or unfolds it, or both. */
+export async function updateSection(id: string, changes: UpdateSectionInput): Promise<SectionDto> {
   return prisma.$transaction(async (tx) => {
     const section = await tx.projectSection.findUnique({ where: { id } });
     if (!section) throw new NotFoundError(`Section ${id} not found`);
-    assertSectionNameFree(await getProject(tx, section.projectId), name, id);
-    const renamed = await tx.projectSection.update({ where: { id }, data: { name } });
-    return { id: renamed.id, name: renamed.name };
+    if (changes.name !== undefined) assertSectionNameFree(await getProject(tx, section.projectId), changes.name, id);
+    return toSectionDto(await tx.projectSection.update({ where: { id }, data: changes }));
   });
 }
 

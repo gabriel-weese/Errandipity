@@ -1,9 +1,9 @@
 import { DEFAULT_SETTINGS, type GoalProgress } from '@errandipity/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useMatch } from 'react-router';
-import { useApp, useProgress, useProjects, useSaveSettings, useSettings } from './context';
+import { useApp, useProgress, useProjectActions, useProjects, useSaveSettings, useSettings } from './context';
 import { sectionAnchor } from './ProjectView';
-import { accentButtonClass } from './ui';
+import { accentButtonClass, CollapseButton } from './ui';
 import { CalendarIcon, CheckCircleIcon, ChevronIcon, FolderIcon, GearIcon, HelpIcon, ListIcon, LogoIcon, PlusIcon, SunIcon, TagIcon } from './icons';
 
 const PROJECTS_PATH = '/projects';
@@ -43,10 +43,12 @@ const subItemClass = (active: boolean) =>
 
 /**
  * The projects, listed under the Projects item. The project being viewed lists its
- * sections beneath it; each links to that section on the project's page.
+ * sections beneath it; each links to that section on the project's page, unfolding it
+ * if it was folded away.
  */
 function ProjectLinks() {
   const projects = useProjects().data ?? [];
+  const { updateSection } = useProjectActions();
   const openId = useMatch(`${PROJECTS_PATH}/:id`)?.params.id;
   const { hash } = useLocation();
   if (projects.length === 0) return <p className="py-1 pl-10 text-xs text-faint">No projects yet</p>;
@@ -71,6 +73,7 @@ function ProjectLinks() {
                     <NavLink
                       to={`${PROJECTS_PATH}/${project.id}${anchor}`}
                       title={section.name}
+                      onClick={() => section.collapsed && updateSection.mutate({ id: section.id, collapsed: false })}
                       className={() => `pl-14 text-xs ${subItemClass(hash === anchor)}`}
                     >
                       {section.name}
@@ -200,15 +203,11 @@ export function Sidebar() {
             <div key={item.to} className="flex flex-col gap-0.5">
               <div className="flex items-center gap-1">
                 {link}
-                <button
-                  type="button"
-                  onClick={() => save.mutate({ projectsExpanded: !expanded })}
-                  aria-label={expanded ? 'Hide the project list' : 'Show the project list'}
-                  aria-expanded={expanded}
-                  className="rounded-md p-1.5 text-muted hover:bg-raised"
-                >
-                  <ChevronIcon direction={expanded ? 'down' : 'right'} size="size-4" />
-                </button>
+                <CollapseButton
+                  expanded={expanded}
+                  name="the project list"
+                  onToggle={() => save.mutate({ projectsExpanded: !expanded })}
+                />
               </div>
               {expanded && <ProjectLinks />}
             </div>

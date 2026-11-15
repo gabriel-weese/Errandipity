@@ -88,12 +88,18 @@ have both.
 - Deleting a section leaves its tasks in the project without a section. Deleting a project
   deletes all of its tasks, completed ones included.
 - Project names are distinct ignoring case, as are section names within a project.
+- What is folded away on a project's page is stored: `collapsed` on each section, and
+  `detailsCollapsed`, `tasksCollapsed` and `completedCollapsed` on the project.
 
 The Projects view (`/projects`) lists the projects; a project's page (`/projects/:id`) shows
-its details, its pending tasks by section with a quick-add row in each, a line to add a
-section, and its completed tasks. Quick-add there creates tasks without a date unless the
-text has a `**` day or a `$$` repeat. In the dashboard, Projects opens to list the projects,
-and the project being viewed lists its sections.
+its information, its pending tasks by section with a quick-add row in each, a line to add a
+section, and its completed tasks. Each of these parts folds away under an arrow; the folded
+information card keeps the progress bar and the target date, and the completed list starts
+folded. Tasks are added inside a section. A task in the project without a section (its
+section was deleted, or none was chosen in the task form) is listed under "Tasks", which
+has no quick-add row. Quick-add creates tasks without a date unless the text has a `**` day
+or a `$$` repeat. In the dashboard, Projects opens to list the projects, and the project
+being viewed lists its sections.
 
 ## Development notes
 
