@@ -39,9 +39,12 @@ function useSavedText(saved: string, save: (text: string) => Promise<unknown> | 
   };
 }
 
-/** An input that reads as a heading until it is hovered or focused. */
+/**
+ * An input that reads as a heading until it is hovered or focused. Where there is no
+ * hover (touch screens) it is always outlined, to show that it can be edited.
+ */
 const headingInputClass =
-  'min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 hover:border-line focus:border-line-strong focus:bg-field';
+  'min-w-32 flex-1 rounded border border-transparent bg-transparent px-1 hover:border-line focus:border-line-strong focus:bg-field [@media(hover:none)]:border-line-soft';
 
 const SORT_NAMES = { priority: 'Priority, then due date and time', date: 'Due date and time, then priority' } as const;
 
@@ -66,7 +69,7 @@ function ProjectHeader({ project }: { project: ProjectDto }) {
 
   return (
     <header className="space-y-4">
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-1">
         <CollapseButton
           expanded={expanded}
           name="the project information"
@@ -77,7 +80,8 @@ function ProjectHeader({ project }: { project: ProjectDto }) {
           maxLength={80}
           {...name}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className={`text-xl font-bold ${headingInputClass}`}
+          // On a phone the name takes most of the row, which puts "Delete project" on the next line.
+          className={`text-xl font-bold max-md:min-w-[75%] ${headingInputClass}`}
         />
         {confirming ? (
           <>
@@ -186,7 +190,7 @@ interface FoldProps {
 function Fold({ id, name, expanded, onToggle, heading, count, action, children }: FoldProps) {
   return (
     <section id={id} className="scroll-mt-4">
-      <div className="mb-2 flex items-center gap-1">
+      <div className="mb-2 flex flex-wrap items-center justify-end gap-1">
         <CollapseButton expanded={expanded} name={name} onToggle={onToggle} />
         {heading}
         {!expanded && (
@@ -288,7 +292,7 @@ export function ProjectView() {
   const { hash } = useLocation();
   const projectsQuery = useProjects();
   const tasksQuery = usePendingTasks();
-  const { update, addSection } = useProjectActions();
+  const { update, updateSection, addSection } = useProjectActions();
   const project = projectsQuery.data?.find((candidate) => candidate.id === id);
   const loaded = project !== undefined && !tasksQuery.isPending;
 
@@ -320,6 +324,22 @@ export function ProjectView() {
       ) : (
         <div className="space-y-6">
           <ProjectHeader project={project} />
+
+          {/* On a phone there is no dashboard to list the sections, so the page links to them itself. */}
+          {project.sections.length > 1 && (
+            <nav aria-label="Sections" className="flex flex-wrap gap-2 md:hidden">
+              {project.sections.map((section) => (
+                <Link
+                  key={section.id}
+                  to={`#${sectionAnchor(section.id)}`}
+                  onClick={() => section.collapsed && updateSection.mutate({ id: section.id, collapsed: false })}
+                  className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm text-soft"
+                >
+                  {section.name}
+                </Link>
+              ))}
+            </nav>
+          )}
 
           {unfiled.length > 0 && (
             <Fold

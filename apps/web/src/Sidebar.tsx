@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, type GoalProgress } from '@errandipity/shared';
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { NavLink, useLocation, useMatch } from 'react-router';
 import { useApp, useProgress, useProjectActions, useProjects, useSaveSettings, useSettings } from './context';
 import { sectionAnchor } from './ProjectView';
@@ -16,20 +16,6 @@ const NAV: { to: string; label: string; icon: ReactNode }[] = [
   { to: PROJECTS_PATH, label: 'Projects', icon: <FolderIcon /> },
   { to: '/completed', label: 'Recently Completed', icon: <CheckCircleIcon /> },
 ];
-
-/** Below this width the dashboard always shows as the icon rail. */
-const NARROW_QUERY = '(max-width: 767px)';
-
-function useIsNarrow() {
-  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
-  useEffect(() => {
-    const media = window.matchMedia(NARROW_QUERY);
-    const onChange = () => setNarrow(media.matches);
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
-  }, []);
-  return narrow;
-}
 
 const itemClass = (active: boolean, collapsed: boolean) =>
   `flex items-center gap-3 rounded-md py-2 text-sm font-medium ${collapsed ? 'justify-center px-0' : 'px-2.5'} ${
@@ -89,7 +75,8 @@ function ProjectLinks() {
   );
 }
 
-function GoalMeter({ label, short, progress, collapsed }: { label: string; short: string; progress: GoalProgress; collapsed: boolean }) {
+/** One goal's progress: a labelled bar, or just the count in the collapsed dashboard. */
+export function GoalMeter({ label, short, progress, collapsed }: { label: string; short: string; progress: GoalProgress; collapsed: boolean }) {
   const { done, goal } = progress;
   if (goal <= 0) return null;
   const reached = done >= goal;
@@ -131,14 +118,16 @@ function GoalMeter({ label, short, progress, collapsed }: { label: string; short
   );
 }
 
-/** The side dashboard: add task, navigation (with the projects and their sections), goal progress and settings. */
+/**
+ * The side dashboard: add task, navigation (with the projects and their sections), goal
+ * progress and settings. Phones get MobileNav instead.
+ */
 export function Sidebar() {
   const { openEditor } = useApp();
   const settings = useSettings().data ?? DEFAULT_SETTINGS;
   const progress = useProgress().data;
   const save = useSaveSettings();
-  const narrow = useIsNarrow();
-  const collapsed = narrow || settings.sidebarCollapsed;
+  const collapsed = settings.sidebarCollapsed;
   const onRight = settings.sidebarSide === 'right';
   // The chevron points the way the panel will move.
   const chevron = collapsed === onRight ? 'left' : 'right';
@@ -147,25 +136,23 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Dashboard"
-      className={`sticky top-0 flex h-screen shrink-0 flex-col gap-4 border-line bg-surface py-4 ${
+      className={`sticky top-0 hidden h-screen shrink-0 flex-col gap-4 md:flex border-line bg-surface py-4 ${
         onRight ? 'border-l' : 'border-r'
       } ${collapsed ? 'w-14 px-2' : 'w-60 px-3'}`}
     >
       <div className={`flex items-center gap-2 ${collapsed ? 'flex-col' : 'pl-1.5'}`}>
         <LogoIcon />
         {!collapsed && <span className="flex-1 text-lg font-bold">Errandipity</span>}
-        {!narrow && (
-          <button
-            type="button"
-            onClick={() => save.mutate({ sidebarCollapsed: !settings.sidebarCollapsed })}
-            aria-label={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
-            aria-expanded={!collapsed}
-            title={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
-            className="rounded-md p-1.5 text-muted hover:bg-raised"
-          >
-            <ChevronIcon direction={chevron} />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => save.mutate({ sidebarCollapsed: !settings.sidebarCollapsed })}
+          aria-label={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
+          className="rounded-md p-1.5 text-muted hover:bg-raised"
+        >
+          <ChevronIcon direction={chevron} />
+        </button>
       </div>
 
       <button

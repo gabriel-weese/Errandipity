@@ -109,6 +109,13 @@ export const TagIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Three dots: "more". */
+export const MoreIcon = (props: IconProps) => (
+  <Icon strokeWidth={3} {...props}>
+    <path d="M5 12h.01M12 12h.01M19 12h.01" />
+  </Icon>
+);
+
 export const ClockIcon = (props: IconProps) => (
   <Icon {...props}>
     <circle cx="12" cy="12" r="9" />

@@ -17,6 +17,7 @@ Run from the repository root.
 ```
 yarn install
 yarn dev            # API on http://127.0.0.1:3001 and web on http://localhost:5173, together
+yarn dev:lan        # the same, with the web app also reachable from other devices on the network (no login: trusted networks only)
 yarn typecheck      # tsc in all three workspaces
 yarn test           # vitest, all unit tests
 yarn vitest run packages/shared/src/quickAdd.test.ts     # one test file
@@ -72,6 +73,15 @@ Calendar dates are `"YYYY-MM-DD"` strings (`IsoDate`) in the user's local timezo
 - Quick-add symbols are one list, `SYMBOLS` in `packages/shared/src/quickAdd.ts`. The Help page is generated from it, so a new symbol is documented by adding it there.
 - `TaskDialog.tsx` is the full form; the repeat controls and their validation are in `RecurrenceFields.tsx`.
 
+### Phone layout
+
+- Below Tailwind's `md` breakpoint (768px) the app is laid out for a phone: `MobileNav.tsx` (bottom tab bar and add button) replaces `Sidebar.tsx`, and `MoreView.tsx` lists the views without a tab. Target is Chromium on Android, online only.
+- Write layout differences with `md:` / `max-md:` classes. Use `useIsNarrow()` only where a phone renders something else altogether.
+- `ActionMenu` already turns into a `BottomSheet` on a phone, so anything opened through it (including `DateField` / `TimeField`) needs no extra work; give menu content `max-md:w-full`. `RowActions` renders one "more" button and a sheet instead of the hover icons.
+- Anything new that needs a place in the dashboard also needs one on a phone (a tab, the More page, or the page itself, as the section links on a project's page).
+- Touch targets should be about 44px; nothing may rely on hover. Check new screens at 390px wide for horizontal overflow.
+- The API stays bound to 127.0.0.1. Other devices reach it through Vite's `/api` proxy, so do not bind the API to the network.
+
 ### Styling and themes
 
 - Colours are theme tokens defined in `apps/web/src/index.css`. Components use token classes (`bg-surface`, `text-muted`, `border-line`, `bg-accent`), never raw palette colours. The exceptions are priority and status colours (red, orange, amber, blue, emerald), which are fixed Tailwind colours; a theme they do not show up on (Meadow) redefines those `--color-*` variables in its own block.
@@ -97,7 +107,7 @@ Do not create git commits, and do not push. Leave changes in the working tree; t
 
 ```
 cd apps/api
-DATABASE_URL="file:./smoke.db" yarn prisma migrate deploy          # create the throwaway database
+DATABASE_URL="file:./smoke.db" yarn prisma db push --skip-generate # create the throwaway database from schema.prisma
 DATABASE_URL="file:./smoke.db" PORT=3101 yarn start                # API against it
 cd ../web && API_PORT=3101 yarn vite --port 5174 --strictPort      # web pointed at that API
 ```

@@ -21,7 +21,7 @@ import { accentButtonClass } from './ui';
 
 export function PriorityMenu({ task, onPick }: { task: TaskDto; onPick: (priority: number) => void }) {
   return (
-    <div className="w-44">
+    <div className="w-44 max-md:w-full">
       {PRIORITIES.map((priority) => (
         <button
           key={priority}
@@ -70,10 +70,10 @@ export function DateMenu({ value, today, onPick, onClear, hideShortcuts = false 
     setYear(Math.floor(index / 12));
     setMonth((index % 12) + 1);
   };
-  const navClass = 'rounded px-2 py-1 text-muted hover:bg-raised hover:text-ink';
+  const navClass = 'rounded px-2 py-1 text-muted hover:bg-raised hover:text-ink max-md:px-4 max-md:py-2';
 
   return (
-    <div className="w-60">
+    <div className="w-60 max-md:w-full">
       <div className="mb-1 flex items-center justify-between">
         <button type="button" aria-label="Previous month" onClick={() => step(-1)} className={navClass}>
           ‹
@@ -101,7 +101,7 @@ export function DateMenu({ value, today, onPick, onClear, hideShortcuts = false 
               aria-label={date}
               aria-pressed={date === value}
               onClick={() => onPick(date)}
-              className={`m-0.5 rounded py-1 ${
+              className={`m-0.5 rounded py-1 max-md:py-2.5 ${
                 date === value
                   ? 'bg-accent font-semibold text-on-accent'
                   : `hover:bg-raised ${date === today ? 'font-semibold ring-1 ring-accent' : ''} ${date < today ? 'text-faint' : ''}`
@@ -116,16 +116,16 @@ export function DateMenu({ value, today, onPick, onClear, hideShortcuts = false 
         <div className="mt-2 flex gap-2 border-t border-line pt-2">
           {!hideShortcuts && (
             <>
-              <button type="button" onClick={() => onPick(today)} className="flex-1 rounded px-2 py-1 text-sm hover:bg-raised">
+              <button type="button" onClick={() => onPick(today)} className="flex-1 rounded px-2 py-1 text-sm hover:bg-raised max-md:py-2.5">
                 Today
               </button>
-              <button type="button" onClick={() => onPick(addDays(today, 1))} className="flex-1 rounded px-2 py-1 text-sm hover:bg-raised">
+              <button type="button" onClick={() => onPick(addDays(today, 1))} className="flex-1 rounded px-2 py-1 text-sm hover:bg-raised max-md:py-2.5">
                 Tomorrow
               </button>
             </>
           )}
           {onClear && (
-            <button type="button" onClick={onClear} className="flex-1 rounded px-2 py-1 text-sm hover:bg-raised">
+            <button type="button" onClick={onClear} className="flex-1 rounded px-2 py-1 text-sm hover:bg-raised max-md:py-2.5">
               No date
             </button>
           )}
@@ -164,7 +164,7 @@ export function TimeMenu({ value, onPick }: { value: string | null; onPick: (tim
   }
 
   return (
-    <div className="w-48">
+    <div className="w-48 max-md:w-full">
       <form onSubmit={submit} className="mb-2 flex gap-1">
         <input
           autoFocus
@@ -176,7 +176,7 @@ export function TimeMenu({ value, onPick }: { value: string | null; onPick: (tim
             setText(e.target.value);
             setInvalid(false);
           }}
-          className={`min-w-0 flex-1 rounded border bg-field px-2 py-1 text-sm ${invalid ? 'border-danger' : 'border-line-strong'}`}
+          className={`min-w-0 flex-1 rounded border bg-field px-2 py-1 text-sm max-md:py-2 ${invalid ? 'border-danger' : 'border-line-strong'}`}
         />
         <button type="submit" className={`rounded px-2 text-sm ${accentButtonClass}`}>
           Set

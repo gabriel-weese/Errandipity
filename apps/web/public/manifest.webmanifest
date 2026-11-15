@@ -1,0 +1,22 @@
+{
+  "name": "Errandipity",
+  "short_name": "Errandipity",
+  "description": "A todo list with recurring tasks, labels and projects.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#413C58",
+  "theme_color": "#413C58",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

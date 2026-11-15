@@ -11,6 +11,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"yarn workspace @errandipity/api dev\" \"yarn workspace @errandipity/web dev\"",
+    "dev:lan": "concurrently -n api,web -c blue,green \"yarn workspace @errandipity/api dev\" \"yarn workspace @errandipity/web dev:lan\"",
     "db:migrate": "yarn workspace @errandipity/api db:migrate",
     "db:generate": "yarn workspace @errandipity/api db:generate",
     "test": "vitest run",

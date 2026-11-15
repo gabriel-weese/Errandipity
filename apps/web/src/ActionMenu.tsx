@@ -1,16 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { BottomSheet } from './BottomSheet';
+import { useIsNarrow } from './useIsNarrow';
 
-/** A choice inside a dropdown; `active` marks the current value. */
+/** A choice inside a dropdown; `active` marks the current value. Taller on phones, for fingers. */
 export const optionClass = (active: boolean) =>
-  `flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
+  `flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:py-3 ${
     active ? 'bg-accent-soft font-semibold text-accent-ink' : 'hover:bg-raised'
   }`;
 
 /**
  * A button with a dropdown anchored to it: an icon by default, or a form field showing its
- * value when `buttonClass` is given. The dropdown is rendered at the
- * top of the page with fixed positioning so that neighbouring rows cannot cover it.
+ * value when `buttonClass` is given. The dropdown is rendered at the top of the page with
+ * fixed positioning so that neighbouring rows cannot cover it. On a phone the content
+ * opens as a bottom sheet instead.
  */
 export function ActionMenu(props: {
   label: string;
@@ -24,6 +27,7 @@ export function ActionMenu(props: {
   children: ReactNode;
 }) {
   const { open, onClose } = props;
+  const narrow = useIsNarrow();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -38,10 +42,11 @@ export function ActionMenu(props: {
     if (top + height > window.innerHeight - margin) top = Math.max(margin, anchor.top - height - 4);
     const left = Math.min(Math.max(margin, anchor.right - width), window.innerWidth - width - margin);
     setPosition({ top, left });
-  }, [open]);
+  }, [open, narrow]);
 
   useEffect(() => {
-    if (!open) return;
+    // The bottom sheet handles its own closing.
+    if (!open || narrow) return;
     const inside = (target: EventTarget | null) =>
       target instanceof Node && (panelRef.current?.contains(target) || buttonRef.current?.contains(target));
     const onPointer = (event: MouseEvent) => !inside(event.target) && onClose();
@@ -64,7 +69,7 @@ export function ActionMenu(props: {
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onClose);
     };
-  }, [open, onClose]);
+  }, [open, narrow, onClose]);
 
   return (
     <>
@@ -82,7 +87,13 @@ export function ActionMenu(props: {
       >
         {props.icon}
       </button>
+      {open && narrow && (
+        <BottomSheet label={props.label} onClose={onClose}>
+          {props.children}
+        </BottomSheet>
+      )}
       {open &&
+        !narrow &&
         createPortal(
           // Rendered invisibly at first so its size can be measured, then placed and shown.
           <div

@@ -8,7 +8,14 @@ A todo app for productivity and task accountability. Single user, runs locally.
 yarn install
 yarn db:migrate   # creates apps/api/prisma/dev.db (copy apps/api/.env.example to .env first)
 yarn dev          # API on http://127.0.0.1:3001, web on http://localhost:5173
+yarn dev:lan      # the same, and the web app also answers on this machine's network addresses
 ```
+
+`yarn dev:lan` is for opening the app on a phone on the same network: Vite prints the
+addresses to use (`http://<this machine's address>:5173`). There is no login, so only use
+it on a network you trust. The API itself still listens on 127.0.0.1 only; the phone
+reaches it through the web server's `/api` proxy. Windows may ask to allow Node through
+the firewall the first time.
 
 `yarn test` runs the unit tests; `yarn typecheck` checks all workspaces.
 
@@ -100,6 +107,21 @@ section was deleted, or none was chosen in the task form) is listed under "Tasks
 has no quick-add row. Quick-add creates tasks without a date unless the text has a `**` day
 or a `$$` repeat. In the dashboard, Projects opens to list the projects, and the project
 being viewed lists its sections.
+
+## Phones
+
+Below 768px wide (Tailwind's `md`) the app switches to a phone layout:
+
+- A bottom tab bar (Upcoming, Today, Projects, More) and a round "add task" button replace
+  the side dashboard. More lists the other views and shows the goal progress.
+- A task row has one "more" button, which opens a sheet with the row's quick edits.
+- Dropdowns (calendar, time list, priority, label colour) open as bottom sheets.
+- The task form fills the screen, with its buttons fixed at the bottom.
+- A project's page links to its sections at the top, since there is no dashboard to list them.
+
+It is aimed at Chromium browsers on Android and needs a connection to the API. The web
+manifest lets the site be added to the home screen; Chrome only installs it as a standalone
+app from a secure address (https or localhost), so over plain http it is a shortcut.
 
 ## Development notes
 

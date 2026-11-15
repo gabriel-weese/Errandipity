@@ -4,6 +4,8 @@ import { Route, Routes, useParams } from 'react-router';
 import { AppContext, useSettings, type AppActions, type TaskDraft } from './context';
 import { HelpView } from './HelpView';
 import { LabelsView } from './LabelsView';
+import { MobileNav, MORE_PATH } from './MobileNav';
+import { MoreView } from './MoreView';
 import { ProjectsView } from './ProjectsView';
 import { ProjectView } from './ProjectView';
 import { SettingsView } from './SettingsView';
@@ -51,7 +53,8 @@ export function App() {
       <div className={`flex min-h-screen ${settings.sidebarSide === 'right' ? 'flex-row-reverse' : ''}`}>
         <Sidebar />
         <main className="min-w-0 flex-1">
-          <div className="mx-auto max-w-3xl px-4 py-8">
+          {/* On a phone the bottom padding keeps the last rows clear of the tab bar and the add button. */}
+          <div className="mx-auto max-w-3xl px-4 py-8 max-md:pb-40 max-md:pt-5">
             <Routes>
               <Route path="/" element={<UpcomingView />} />
               <Route path="/today" element={<TodayView />} />
@@ -61,12 +64,14 @@ export function App() {
               {/* The key gives each project its own state, so one project's unsaved text never shows on another. */}
               <Route path="/projects/:id" element={<KeyedProjectView />} />
               <Route path="/completed" element={<CompletedView />} />
+              <Route path={MORE_PATH} element={<MoreView />} />
               <Route path="/help" element={<HelpView />} />
               <Route path="/settings" element={<SettingsView />} />
             </Routes>
           </div>
         </main>
       </div>
+      <MobileNav />
 
       {editor && (
         <TaskDialog

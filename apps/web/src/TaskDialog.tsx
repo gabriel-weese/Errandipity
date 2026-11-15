@@ -93,7 +93,7 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-overlay p-4"
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-overlay p-4 max-md:p-0"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <form
@@ -101,7 +101,8 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
         aria-modal="true"
         aria-label={task ? 'Edit task' : 'New task'}
         onSubmit={handleSubmit}
-        className="mt-16 w-full max-w-lg space-y-4 rounded-lg bg-surface p-5 shadow-xl"
+        // Full-screen on a phone.
+        className="mt-16 w-full max-w-lg space-y-4 rounded-lg bg-surface p-5 shadow-xl max-md:mt-0 max-md:flex max-md:min-h-dvh max-md:max-w-none max-md:flex-col max-md:rounded-none"
       >
         <h2 className="text-lg font-semibold">{task ? 'Edit task' : 'New task'}</h2>
 
@@ -245,7 +246,8 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          // On a phone the buttons stay in reach at the bottom of the screen, above the keyboard.
+          <div className="flex items-center gap-2 max-md:sticky max-md:bottom-0 max-md:-mx-5 max-md:-mb-5 max-md:mt-auto max-md:border-t max-md:border-line max-md:bg-surface max-md:px-5 max-md:py-3">
             {task && (
               <button type="button" onClick={() => setConfirmingDelete(true)} className="text-sm text-danger hover:underline">
                 Delete

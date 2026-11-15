@@ -84,7 +84,7 @@ function Toast({ toast, onDismiss, onUndo }: { toast: ToastData } & Omit<Props, 
 
 export function Toasts({ toasts, onDismiss, onUndo }: Props) {
   return (
-    <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
+    <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-50 flex w-80 max-md:bottom-[calc(9rem+env(safe-area-inset-bottom))] max-w-[calc(100vw-2rem)] flex-col gap-2">
       {toasts.map((toast) => (
         <Toast key={toast.id} toast={toast} onDismiss={onDismiss} onUndo={onUndo} />
       ))}

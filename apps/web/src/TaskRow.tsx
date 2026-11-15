@@ -127,7 +127,8 @@ export function TaskRow({ task, showDate = false, hideSchedule = false, hideProj
         title={`Priority ${task.priority}`}
         checked={false}
         onChange={() => complete(task)}
-        className={`mt-0.5 size-4 shrink-0 cursor-pointer appearance-none rounded border-2 ${PRIORITY_BOX[task.priority] ?? ''}`}
+        // The invisible ::before widens the area a finger can hit without changing the box.
+        className={`relative mt-0.5 size-4 shrink-0 cursor-pointer appearance-none rounded border-2 before:absolute before:-inset-3 before:content-[''] ${PRIORITY_BOX[task.priority] ?? ''}`}
       />
       <button type="button" onClick={() => openEditor(task)} className="min-w-40 flex-1 text-left">
         <div className="text-sm font-medium hover:underline">{task.title}</div>
