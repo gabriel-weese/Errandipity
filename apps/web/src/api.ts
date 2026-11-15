@@ -1,9 +1,17 @@
 import type {
+  CreateLabelInput,
+  CreateProjectInput,
   CreateTaskInput,
   EditScope,
+  IsoDate,
+  LabelDto,
   ProgressDto,
+  ProjectDto,
+  SectionDto,
   SettingsDto,
   TaskDto,
+  UpdateLabelInput,
+  UpdateProjectInput,
   UpdateSettingsInput,
   UpdateTaskInput,
 } from '@errandipity/shared';
@@ -30,10 +38,23 @@ export const api = {
   complete: (id: string) =>
     request<{ completed: TaskDto; next: TaskDto | null; progress: ProgressDto }>(`/tasks/${id}/complete`, 'POST'),
   uncomplete: (id: string) => request<TaskDto>(`/tasks/${id}/uncomplete`, 'POST'),
-  reschedule: (ids: string[], dueDate: string) =>
+  reschedule: (ids: string[], dueDate: IsoDate) =>
     request<TaskDto[]>('/tasks/reschedule', 'POST', { ids, dueDate }),
   remove: (id: string, scope: EditScope) =>
     request<{ next: TaskDto | null }>(`/tasks/${id}?scope=${scope}`, 'DELETE'),
+  listLabels: () => request<LabelDto[]>('/labels'),
+  createLabel: (input: CreateLabelInput) => request<LabelDto>('/labels', 'POST', input),
+  updateLabel: (id: string, changes: UpdateLabelInput) => request<LabelDto>(`/labels/${id}`, 'PATCH', changes),
+  deleteLabel: (id: string) => request<{ ok: true }>(`/labels/${id}`, 'DELETE'),
+  listProjects: () => request<ProjectDto[]>('/projects'),
+  createProject: (input: CreateProjectInput) => request<ProjectDto>('/projects', 'POST', input),
+  updateProject: (id: string, changes: UpdateProjectInput) => request<ProjectDto>(`/projects/${id}`, 'PATCH', changes),
+  deleteProject: (id: string) => request<{ ok: true }>(`/projects/${id}`, 'DELETE'),
+  listProjectCompleted: (id: string) => request<TaskDto[]>(`/projects/${id}/completed`),
+  createSection: (projectId: string, name: string) =>
+    request<SectionDto>(`/projects/${projectId}/sections`, 'POST', { name }),
+  renameSection: (id: string, name: string) => request<SectionDto>(`/sections/${id}`, 'PATCH', { name }),
+  deleteSection: (id: string) => request<{ ok: true }>(`/sections/${id}`, 'DELETE'),
   getProgress: () => request<ProgressDto>('/progress'),
   getSettings: () => request<SettingsDto>('/settings'),
   updateSettings: (changes: UpdateSettingsInput) => request<SettingsDto>('/settings', 'PATCH', changes),

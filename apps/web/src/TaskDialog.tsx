@@ -1,55 +1,50 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { EditScope, MonthlyAnchor, Recurrence, TaskDto } from '@errandipity/shared';
+import {
+  DEFAULT_PRIORITY,
+  NEEDS_DATE,
+  PRIORITIES,
+  priorityHint,
+  type EditScope,
+  type IsoDate,
+  type Recurrence,
+  type TaskDto,
+} from '@errandipity/shared';
 import { api } from './api';
-import type { TaskDraft } from './context';
-
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const ANCHORS: { value: MonthlyAnchor; label: string }[] = [
-  { value: 'first', label: 'First' },
-  { value: 'middle', label: 'Middle' },
-  { value: 'last', label: 'Last' },
-];
-
-const field =
-  'rounded border border-line-strong bg-field px-2 py-1.5 text-sm disabled:bg-raised disabled:text-faint ' +
-  '';
-const label = 'flex flex-col gap-1 text-xs font-medium text-soft';
-const hint = 'text-xs text-muted';
-const toggle = (active: boolean) =>
-  `rounded px-2 py-1 text-sm disabled:opacity-50 ${
-    active ? 'bg-accent text-on-accent' : 'bg-raised'
-  }`;
+import { useLabels, useProjects, type TaskDraft } from './context';
+import { buildRecurrence, draftFromRule, RecurrenceFields, type RecurrenceDraft } from './RecurrenceFields';
+import { accentButtonClass, fieldClass, hintClass, labelClass, LabelToggle } from './ui';
 
 interface Props {
   /** The task being edited, or null to create a new one. */
   task: TaskDto | null;
   /** Starting values for a new task. */
   draft?: TaskDraft;
-  today: string;
+  today: IsoDate;
   onClose: () => void;
   /** Called after any successful save or delete. */
   onSaved: () => void;
 }
 
+/** The full form for creating a task, or for editing or deleting an existing one. */
 export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
-  const initial: Recurrence = task?.recurrence ?? draft?.recurrence ?? { type: 'none' };
+  const labels = useLabels().data ?? [];
+  const projects = useProjects().data ?? [];
   const isRecurring = task !== null && task.recurrence.type !== 'none';
-  const initialAnchors = initial.type === 'monthly' ? initial.anchors : [];
+  const initialRule: Recurrence = task?.recurrence ?? draft?.recurrence ?? { type: 'none' };
 
   const [title, setTitle] = useState(task?.title ?? draft?.title ?? '');
   const [notes, setNotes] = useState(task?.notes ?? '');
-  const [priority, setPriority] = useState(task?.priority ?? draft?.priority ?? 3);
-  const [dueDate, setDueDate] = useState(task?.dueDate ?? draft?.dueDate ?? today);
+  const [priority, setPriority] = useState(task?.priority ?? draft?.priority ?? DEFAULT_PRIORITY);
+  // An empty string is "no date". A new task starts on today unless the draft says otherwise.
+  const [dueDate, setDueDate] = useState((task ? task.dueDate : draft?.dueDate === undefined ? today : draft.dueDate) ?? '');
   const [dueTime, setDueTime] = useState(task?.dueTime ?? draft?.dueTime ?? '');
+  const [labelIds, setLabelIds] = useState(task?.labels.map((label) => label.id) ?? draft?.labelIds ?? []);
+  const [projectId, setProjectId] = useState(task ? (task.project?.id ?? null) : (draft?.projectId ?? null));
+  const [sectionId, setSectionId] = useState(task ? task.sectionId : (draft?.sectionId ?? null));
+  const sections = projects.find((project) => project.id === projectId)?.sections ?? [];
   const [scope, setScope] = useState<EditScope>('occurrence');
-  const [type, setType] = useState<Recurrence['type']>(initial.type);
-  const [daysOfWeek, setDaysOfWeek] = useState<number[]>(initial.type === 'weekly' ? initial.daysOfWeek : []);
-  const [monthlyMode, setMonthlyMode] = useState<'days' | 'anchors'>(initialAnchors.length ? 'anchors' : 'days');
-  const [daysOfMonth, setDaysOfMonth] = useState(
-    initial.type === 'monthly' && initial.daysOfMonth.length ? initial.daysOfMonth.join(', ') : '1',
-  );
-  const [anchors, setAnchors] = useState<MonthlyAnchor[]>(initialAnchors);
-  const [intervalDays, setIntervalDays] = useState(initial.type === 'interval' ? initial.intervalDays : 2);
+  const [repeat, setRepeat] = useState(() => draftFromRule(initialRule));
+  const changeRepeat = (changes: Partial<RecurrenceDraft>) => setRepeat((current) => ({ ...current, ...changes }));
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,30 +59,7 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  function buildRecurrence(): Recurrence | string {
-    switch (type) {
-      case 'none':
-      case 'daily':
-        return { type };
-      case 'weekly':
-        return daysOfWeek.length ? { type, daysOfWeek } : 'Pick at least one weekday.';
-      case 'monthly': {
-        if (monthlyMode === 'anchors') {
-          return anchors.length
-            ? { type, daysOfMonth: [], anchors }
-            : 'Pick at least one of First, Middle or Last.';
-        }
-        const days = daysOfMonth
-          .split(',')
-          .map((s) => Number(s.trim()))
-          .filter((n) => Number.isInteger(n) && n >= 1 && n <= 31);
-        return days.length ? { type, daysOfMonth: days, anchors: [] } : 'Enter days of the month, e.g. 1, 15.';
-      }
-      case 'interval':
-        return intervalDays >= 1 ? { type, intervalDays } : 'Interval must be at least 1 day.';
-    }
-  }
-
+  /** Runs a save or delete, then closes the dialog; a failure is shown and the dialog stays open. */
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     try {
@@ -102,16 +74,21 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const recurrence = buildRecurrence();
-    if (typeof recurrence === 'string') return setError(recurrence);
-    const fields = { title, notes, priority, dueDate, dueTime: dueTime || null };
+    const result = buildRecurrence(repeat);
+    if ('error' in result) return setError(result.error);
+    const recurrence = result.rule;
+    // When the rule is locked the task keeps the one it has.
+    const repeats = (recurrenceLocked ? task.recurrence : recurrence).type !== 'none';
+    if (!dueDate && repeats) return setError(NEEDS_DATE);
+    const fields = { title, notes, priority, dueDate: dueDate || null, dueTime: dueTime || null, labelIds, projectId, sectionId };
     if (!task) return run(() => api.create({ ...fields, recurrence }));
     return run(() =>
       api.update(task.id, effectiveScope, recurrenceLocked ? fields : { ...fields, recurrence }),
     );
   }
 
-  const dateChanged = task !== null && dueDate !== task.dueDate;
+  // Only a move from one day to another counts.
+  const dateChanged = task !== null && task.dueDate !== null && dueDate !== '' && dueDate !== task.dueDate;
 
   return (
     <div
@@ -141,31 +118,31 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
           </fieldset>
         )}
 
-        <label className={label}>
+        <label className={labelClass}>
           Title
-          <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
+          <input className={fieldClass} value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
         </label>
-        <label className={label}>
+        <label className={labelClass}>
           Notes
-          <textarea className={field} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <textarea className={fieldClass} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
 
         <div className="flex flex-wrap gap-3">
-          <label className={label}>
-            Date
-            <input type="date" className={field} value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
+          <label className={labelClass}>
+            Date (optional)
+            <input type="date" className={fieldClass} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </label>
-          <label className={label}>
+          <label className={labelClass}>
             Time (optional)
-            <input type="time" className={field} value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
+            <input type="time" className={fieldClass} value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
           </label>
-          <label className={label}>
+          <label className={labelClass}>
             Priority
-            <select className={field} value={priority} onChange={(e) => setPriority(Number(e.target.value))}>
-              {[1, 2, 3, 4, 5].map((p) => (
+            <select className={fieldClass} value={priority} onChange={(e) => setPriority(Number(e.target.value))}>
+              {PRIORITIES.map((p) => (
                 <option key={p} value={p}>
                   {p}
-                  {p === 1 ? ' (highest)' : p === 5 ? ' (lowest)' : ''}
+                  {priorityHint(p)}
                 </option>
               ))}
             </select>
@@ -177,109 +154,67 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
           </p>
         )}
 
-        <div className="space-y-2">
+        {projects.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            <label className={label}>
-              Repeat
+            <label className={labelClass}>
+              Project
               <select
-                className={field}
-                value={type}
-                disabled={recurrenceLocked}
-                onChange={(e) => setType(e.target.value as Recurrence['type'])}
+                className={fieldClass}
+                value={projectId ?? ''}
+                onChange={(e) => {
+                  setProjectId(e.target.value || null);
+                  setSectionId(null);
+                }}
               >
-                <option value="none">Does not repeat</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="interval">Every X days</option>
+                <option value="">None</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
               </select>
             </label>
-            {type === 'monthly' && (
-              <label className={label}>
-                On
-                <select
-                  className={field}
-                  value={monthlyMode}
-                  disabled={recurrenceLocked}
-                  onChange={(e) => setMonthlyMode(e.target.value as 'days' | 'anchors')}
-                >
-                  <option value="days">Specific day(s)</option>
-                  <option value="anchors">First, middle or last</option>
+            {sections.length > 0 && (
+              <label className={labelClass}>
+                Section
+                <select className={fieldClass} value={sectionId ?? ''} onChange={(e) => setSectionId(e.target.value || null)}>
+                  <option value="">No section</option>
+                  {sections.map((section) => (
+                    <option key={section.id} value={section.id}>
+                      {section.name}
+                    </option>
+                  ))}
                 </select>
               </label>
             )}
           </div>
-          {recurrenceLocked && (
-            <p className={hint}>Choose "This and all future tasks" to change how this task repeats.</p>
-          )}
-          {type === 'weekly' && (
+        )}
+        {isRecurring && effectiveScope === 'occurrence' && (projectId !== (task.project?.id ?? null) || sectionId !== task.sectionId) && (
+          <p className={hintClass}>The project and section apply to this and all future tasks.</p>
+        )}
+
+        <fieldset>
+          <legend className="mb-1 text-xs font-medium text-soft">Labels</legend>
+          {labels.length === 0 ? (
+            <p className={hintClass}>Labels are created in Settings.</p>
+          ) : (
             <div className="flex flex-wrap gap-1">
-              {WEEKDAYS.map((name, day) => {
-                const active = daysOfWeek.includes(day);
+              {labels.map((label) => {
+                const active = labelIds.includes(label.id);
                 return (
-                  <button
-                    key={day}
-                    type="button"
-                    disabled={recurrenceLocked}
-                    aria-pressed={active}
-                    onClick={() => setDaysOfWeek(active ? daysOfWeek.filter((d) => d !== day) : [...daysOfWeek, day])}
-                    className={toggle(active)}
-                  >
-                    {name}
-                  </button>
+                  <LabelToggle
+                    key={label.id}
+                    label={label}
+                    active={active}
+                    onToggle={() => setLabelIds(active ? labelIds.filter((id) => id !== label.id) : [...labelIds, label.id])}
+                  />
                 );
               })}
             </div>
           )}
-          {type === 'monthly' && monthlyMode === 'days' && (
-            <label className="flex items-center gap-2 text-sm">
-              Day(s) of the month
-              <input
-                className={field}
-                disabled={recurrenceLocked}
-                value={daysOfMonth}
-                onChange={(e) => setDaysOfMonth(e.target.value)}
-                placeholder="1, 15"
-              />
-            </label>
-          )}
-          {type === 'monthly' && monthlyMode === 'anchors' && (
-            <div className="space-y-1">
-              <div className="flex flex-wrap gap-1">
-                {ANCHORS.map(({ value, label: name }) => {
-                  const active = anchors.includes(value);
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      disabled={recurrenceLocked}
-                      aria-pressed={active}
-                      onClick={() => setAnchors(active ? anchors.filter((a) => a !== value) : [...anchors, value])}
-                      className={toggle(active)}
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className={hint}>Pick one or more. Middle is the 14th to 16th, depending on the month's length.</p>
-            </div>
-          )}
-          {type === 'interval' && (
-            <label className="flex items-center gap-2 text-sm">
-              Every
-              <input
-                type="number"
-                min={1}
-                disabled={recurrenceLocked}
-                className={`${field} w-20`}
-                value={intervalDays}
-                onChange={(e) => setIntervalDays(Number(e.target.value))}
-              />
-              days after it is completed
-            </label>
-          )}
-        </div>
+        </fieldset>
+
+        <RecurrenceFields draft={repeat} onChange={changeRepeat} locked={recurrenceLocked} />
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -326,7 +261,7 @@ export function TaskDialog({ task, draft, today, onClose, onSaved }: Props) {
             <button
               type="submit"
               disabled={busy}
-              className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
+              className={`rounded px-3 py-1.5 text-sm disabled:opacity-50 ${accentButtonClass}`}
             >
               {task ? 'Save changes' : 'Add task'}
             </button>

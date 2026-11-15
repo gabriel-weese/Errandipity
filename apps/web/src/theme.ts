@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
-import { DEFAULT_SETTINGS, type SettingsDto } from '@errandipity/shared';
+import { DEFAULT_SETTINGS, LIGHT_THEMES, type SettingsDto } from '@errandipity/shared';
 
-/** Must match the key read by the inline script in index.html. */
+/**
+ * Must match the key read by the inline script in index.html. It holds all the settings,
+ * not only the theme; the name is kept so that hints already saved are still found.
+ */
 const SETTINGS_HINT_KEY = 'errandipity-theme';
 const systemDark = () => window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -19,13 +22,14 @@ export function readSettingsHint(): SettingsDto | undefined {
   return undefined;
 }
 
+/** Keep in step with the inline script in index.html, which does the same before first paint. */
 function apply(settings: Pick<SettingsDto, 'matchSystem' | 'theme'>) {
   // Matching the system only ever picks between light and dark.
   const theme = settings.matchSystem ? (systemDark().matches ? 'dark' : 'light') : settings.theme;
   const root = document.documentElement;
   root.dataset.theme = theme;
   // Native controls (date pickers, scrollbars) only know light and dark.
-  root.style.colorScheme = theme === 'light' ? 'light' : 'dark';
+  root.style.colorScheme = LIGHT_THEMES.includes(theme) ? 'light' : 'dark';
 }
 
 /** Keeps the page theme in sync with the settings, and with the OS when matching it. */

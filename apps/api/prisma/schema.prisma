@@ -27,18 +27,35 @@ model TaskSeries {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   tasks          Task[]
+  labels         Label[] // the labels each new occurrence starts with
+  projectId      String?
+  project        Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sectionId      String? // a section of that project
+  section        ProjectSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 }
 
 /// Preferences for the single local user: one row with id "default".
 model UserSettings {
-  id          String   @id @default("default")
-  matchSystem Boolean  @default(true) // follow the OS theme; `theme` is ignored while true
-  theme       String   @default("light") // light | dark
-  sidebarSide      String  @default("left") // left | right
-  sidebarCollapsed Boolean @default(false)
-  dailyGoal        Int     @default(5) // completions per day; 0 = off
-  weeklyGoal       Int     @default(25) // completions per Monday-Sunday week; 0 = off
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default("default")
+  matchSystem      Boolean  @default(true) // follow the OS theme; `theme` is ignored while true
+  theme            String   @default("light") // light | dark | dusk | lagoon | meadow | reef
+  sidebarSide      String   @default("left") // left | right
+  sidebarCollapsed Boolean  @default(false)
+  dailyGoal        Int      @default(5) // completions per day; 0 = off
+  weeklyGoal       Int      @default(25) // completions per Monday-Sunday week; 0 = off
+  projectsExpanded Boolean  @default(true) // the project list under Projects in the dashboard
+  updatedAt        DateTime @updatedAt
+}
+
+/// A user-defined tag; the application allows at most 10. Tasks and series can each carry
+/// several, through the join tables Prisma creates for these relations.
+model Label {
+  id        String       @id @default(uuid())
+  name      String // distinct ignoring case and spaces; checked in the application layer
+  color     String       @default("gray") // one of LABEL_COLORS in packages/shared
+  createdAt DateTime     @default(now())
+  tasks     Task[]
+  series    TaskSeries[]
 }
 
 /// One occurrence. A series has at most one pending task at a time; completing
@@ -50,15 +67,51 @@ model Task {
   title            String
   notes            String     @default("")
   priority         Int
-  dueDate          String // "YYYY-MM-DD", local calendar date
+  dueDate          String? // "YYYY-MM-DD", local calendar date; null = no date (never for a repeating task)
   dueTime          String? // "HH:mm"
   status           String     @default("pending") // pending | done
   completedAt      DateTime?
   timesRescheduled Int        @default(0)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
+  labels           Label[]
+  // Copied from the series, like the labels, so that completed tasks keep their place.
+  projectId        String?
+  project          Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sectionId        String?
+  section          ProjectSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([status, dueDate])
   @@index([seriesId])
   @@index([status, completedAt])
+  @@index([projectId, status])
+}
+
+/// A goal the user is working towards: a group of tasks, optionally divided into sections.
+/// Deleting a project deletes its tasks, completed ones included.
+model Project {
+  id          String           @id @default(uuid())
+  name        String // distinct ignoring case; checked in the application layer
+  objective   String           @default("")
+  description String           @default("")
+  targetDate  String? // "YYYY-MM-DD"
+  sortOrder   String           @default("priority") // priority | date: how its task lists are ordered
+  createdAt   DateTime         @default(now())
+  sections    ProjectSection[]
+  tasks       Task[]
+  series      TaskSeries[]
+}
+
+/// A subdivision of a project, shown in creation order. Deleting one leaves its tasks in
+/// the project with no section.
+model ProjectSection {
+  id        String       @id @default(uuid())
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String // distinct within the project ignoring case; checked in the application layer
+  createdAt DateTime     @default(now())
+  tasks     Task[]
+  series    TaskSeries[]
+
+  @@index([projectId])
 }

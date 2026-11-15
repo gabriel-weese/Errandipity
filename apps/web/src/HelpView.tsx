@@ -1,6 +1,6 @@
 import { QUICK_ADD_HELP } from '@errandipity/shared';
 import type { ReactNode } from 'react';
-import { cardClass, mutedClass } from './TaskRow';
+import { cardClass } from './ui';
 
 const codeClass = 'rounded bg-raised px-1.5 py-0.5 font-mono text-[0.8rem]';
 
@@ -10,7 +10,7 @@ function HelpSection({ title, intro, children }: { title: string; intro?: ReactN
     <section className={`${cardClass} space-y-4 p-4`}>
       <div className="space-y-1">
         <h2 className="text-base font-semibold">{title}</h2>
-        {intro && <p className={`text-sm ${mutedClass}`}>{intro}</p>}
+        {intro && <p className="text-sm text-muted">{intro}</p>}
       </div>
       {children}
     </section>
@@ -25,7 +25,10 @@ function QuickAddSymbols() {
         <>
           The "+ Add task" line at the bottom of each day takes a task name. Add any of these symbols as separate
           words, anywhere in the line, to set more than the name. They are not case-sensitive, and anything that
-          does not match one of the forms below is kept as part of the name.
+          does not match one of the forms below is kept as part of the name. The pencil icon on a task opens
+          the same line for that task, filled in with its name and the symbols for its priority, time, repeat
+          and labels. Change them, or take one out to clear it, and press Enter. The day is not filled in:
+          add a day symbol to move the task.
         </>
       }
     >
@@ -45,7 +48,7 @@ function QuickAddSymbols() {
                   </code>
                 ))}
               </p>
-              <ul className={`space-y-1 ${mutedClass}`}>
+              <ul className="space-y-1 text-muted">
                 {symbol.examples.map((example) => (
                   <li key={example.input}>
                     <code className={codeClass}>{example.input}</code> → {example.result}
@@ -61,7 +64,7 @@ function QuickAddSymbols() {
         <p>
           <code className={codeClass}>Team sync **Mon %%9:30 $$Weekly:MWF !!2</code>
         </p>
-        <p className={mutedClass}>
+        <p className="text-muted">
           Creates "Team sync" next Monday at 9:30 AM, repeating every Monday, Wednesday and Friday, at priority 2.
           The line under the box shows what will be set as you type, and the + button opens the full form with
           the same values.

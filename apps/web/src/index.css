@@ -3,8 +3,11 @@
 /*
  * Colours are theme tokens: components use classes such as bg-surface or text-muted,
  * and each theme below only supplies the values. To add a theme, add one block here
- * and list it in themeSchema (packages/shared) and in the Settings page.
- * Priority and status colours (red, orange, amber, blue, green) are the same in every theme.
+ * and list it in themeSchema (packages/shared) and in the Settings page. Tokens a theme
+ * leaves out keep their Light values; a dark theme must also join the label-colour rule below.
+ * Priority and status colours (red, orange, amber, blue, green) are fixed Tailwind colours,
+ * not tokens, and look the same in every theme. A theme they do not show up on can
+ * redefine those Tailwind colours for itself, as Meadow does.
  */
 @theme inline {
   --color-page: var(--page);
@@ -14,6 +17,7 @@
   --color-track: var(--track);
   --color-overlay: var(--overlay);
   --color-toast: var(--toast);
+  --color-toast-line: var(--toast-line);
   --color-line: var(--line);
   --color-line-soft: var(--line-soft);
   --color-line-strong: var(--line-strong);
@@ -32,6 +36,15 @@
   --color-danger-ink: var(--danger-ink);
   --color-danger-soft: var(--danger-soft);
   --color-danger-line: var(--danger-line);
+  --color-label-gray: var(--label-gray);
+  --color-label-red: var(--label-red);
+  --color-label-orange: var(--label-orange);
+  --color-label-yellow: var(--label-yellow);
+  --color-label-green: var(--label-green);
+  --color-label-teal: var(--label-teal);
+  --color-label-blue: var(--label-blue);
+  --color-label-purple: var(--label-purple);
+  --color-label-pink: var(--label-pink);
 }
 
 :root,
@@ -43,6 +56,7 @@
   --track: #e2e8f0; /* progress-bar background */
   --overlay: rgb(15 23 42 / 0.4); /* behind the dialog */
   --toast: #0f172a;
+  --toast-line: transparent; /* outline for themes whose toast matches the page */
   --line: #e2e8f0;
   --line-soft: #f1f5f9; /* between rows */
   --line-strong: #cbd5e1; /* inputs */
@@ -61,6 +75,17 @@
   --danger-ink: #991b1b;
   --danger-soft: #fef2f2;
   --danger-line: #fecaca;
+
+  /* Label icon colours: these values suit light backgrounds. */
+  --label-gray: #64748b;
+  --label-red: #dc2626;
+  --label-orange: #ea580c;
+  --label-yellow: #ca8a04;
+  --label-green: #16a34a;
+  --label-teal: #0d9488;
+  --label-blue: #2563eb;
+  --label-purple: #9333ea;
+  --label-pink: #db2777;
 }
 
 [data-theme='dark'] {
@@ -71,6 +96,7 @@
   --track: #334155;
   --overlay: rgb(0 0 0 / 0.6);
   --toast: #334155;
+  --toast-line: transparent;
   --line: #334155;
   --line-soft: #334155;
   --line-strong: #475569;
@@ -91,6 +117,21 @@
   --danger-line: #991b1b;
 }
 
+/* Label icon colours for the dark themes: lighter shades of the same hues. */
+[data-theme='dark'],
+[data-theme='dusk'],
+[data-theme='lagoon'] {
+  --label-gray: #94a3b8;
+  --label-red: #f87171;
+  --label-orange: #fb923c;
+  --label-yellow: #facc15;
+  --label-green: #4ade80;
+  --label-teal: #2dd4bf;
+  --label-blue: #60a5fa;
+  --label-purple: #c084fc;
+  --label-pink: #f472b6;
+}
+
 /* Dusk: built from #413C58, #D1D5DE and #B7B6C2; the in-between shades are mixes of those. */
 [data-theme='dusk'] {
   --page: #413c58;
@@ -100,6 +141,7 @@
   --track: #5b5870;
   --overlay: rgb(24 22 36 / 0.6);
   --toast: #2b2740;
+  --toast-line: transparent;
   --line: #646178;
   --line-soft: #5b5870;
   --line-strong: #767388;
@@ -118,4 +160,128 @@
   --danger-ink: #fecaca;
   --danger-soft: #5a3044;
   --danger-line: #8b4f63;
+}
+
+/*
+ * Lagoon: built from #373E40, #488286 and #B7D5D4, with #77878B and #305252 in between.
+ * Softer shades are those colours made partly transparent. #488286 is too close in
+ * brightness to both the dark and the light colour to sit behind or under text, so it
+ * is used for outlines, the progress track and (thinned) the selected-item fill.
+ */
+[data-theme='lagoon'] {
+  --page: #305252;
+  --surface: #373e40;
+  --raised: rgb(183 213 212 / 0.1);
+  --field: #305252;
+  --track: #488286;
+  --overlay: rgb(20 24 25 / 0.65); /* a darkened #373E40, so the dialog stands out from it */
+  --toast: #305252;
+  --toast-line: #488286;
+  --line: rgb(72 130 134 / 0.6);
+  --line-soft: rgb(119 135 139 / 0.35);
+  --line-strong: #77878b;
+  --ink: #b7d5d4;
+  --soft: rgb(183 213 212 / 0.9);
+  --muted: rgb(183 213 212 / 0.8);
+  --faint: #77878b;
+  --accent: #b7d5d4;
+  --accent-hover: rgb(183 213 212 / 0.85);
+  --on-accent: #373e40;
+  --accent-soft: rgb(72 130 134 / 0.45);
+  --accent-ink: #b7d5d4;
+  --warn: #fbbf24;
+  --ok: #6ee7b7;
+  --danger: #fca5a5;
+  --danger-ink: #fecaca;
+  --danger-soft: rgb(248 113 113 / 0.15);
+  --danger-line: rgb(248 113 113 / 0.45);
+}
+
+/*
+ * Meadow (light): built from #7EA172, #C7CB85 and #E7A977, with #502419 for text and
+ * #EBBE9B behind the cards. Softer shades are #502419 made partly transparent.
+ */
+[data-theme='meadow'] {
+  --page: #ebbe9b;
+  --surface: #c7cb85;
+  --raised: rgb(80 36 25 / 0.08);
+  --field: #ebbe9b;
+  --track: rgb(80 36 25 / 0.18);
+  --overlay: rgb(80 36 25 / 0.45);
+  --toast: #502419;
+  --toast-line: transparent;
+  --line: #7ea172;
+  --line-soft: rgb(126 161 114 / 0.55);
+  --line-strong: rgb(80 36 25 / 0.5);
+  --ink: #502419;
+  --soft: rgb(80 36 25 / 0.85);
+  --muted: rgb(80 36 25 / 0.72);
+  --faint: rgb(80 36 25 / 0.5);
+  --accent: #7ea172;
+  --accent-hover: #778e65; /* #7EA172 with a little #502419 mixed in */
+  --on-accent: #502419;
+  --accent-soft: #e7a977;
+  --accent-ink: #502419;
+  --warn: #92400e;
+  --ok: #14532d;
+  --danger: #991b1b;
+  --danger-ink: #7f1d1d;
+  --danger-soft: rgb(220 38 38 / 0.12);
+  --danger-line: rgb(153 27 27 / 0.4);
+
+  /*
+   * The usual priority colours are about as bright as this theme's backgrounds (amber
+   * disappears entirely), so the checkboxes and the goal bar use darker shades of the same hues.
+   */
+  --color-red-500: #b91c1c;
+  --color-orange-500: #ea580c;
+  --color-amber-400: #a16207;
+  --color-blue-500: #1d4ed8;
+  --color-slate-400: #475569;
+  --color-emerald-500: #047857;
+
+  --label-gray: #475569;
+  --label-red: #b91c1c;
+  --label-orange: #c2410c;
+  --label-yellow: #854d0e;
+  --label-green: #166534;
+  --label-teal: #0f766e;
+  --label-blue: #1d4ed8;
+  --label-purple: #7e22ce;
+  --label-pink: #be185d;
+}
+
+/*
+ * Reef (light): built from #084C61, #FFA987 and #D81159, with #E4FDE1 for the cards and
+ * #177E89 for buttons and outlines. #D81159 is a highlight only (the selected-item fill
+ * and label tags): as a button it reads as the danger red, and as text it is too faint
+ * on the #FFA987 page. Softer shades are those colours made partly transparent.
+ */
+[data-theme='reef'] {
+  --page: #ffa987;
+  --surface: #e4fde1;
+  --raised: rgb(8 76 97 / 0.07);
+  --field: #e4fde1;
+  --track: rgb(8 76 97 / 0.15);
+  --overlay: rgb(8 76 97 / 0.5);
+  --toast: #084c61;
+  --toast-line: transparent;
+  --line: rgb(23 126 137 / 0.45);
+  --line-soft: rgb(23 126 137 / 0.22);
+  --line-strong: #177e89;
+  --ink: #084c61;
+  --soft: rgb(8 76 97 / 0.9);
+  --muted: rgb(8 76 97 / 0.8);
+  --faint: rgb(8 76 97 / 0.5);
+  --accent: #177e89;
+  --accent-hover: #13727f; /* #177E89 with a little #084C61 mixed in */
+  --on-accent: #e4fde1;
+  --accent-soft: rgb(216 17 89 / 0.2);
+  --accent-ink: #084c61;
+  --warn: #b45309;
+  --ok: #047857;
+  --danger: #b91c1c;
+  --danger-ink: #991b1b;
+  --danger-soft: rgb(220 38 38 / 0.1);
+  --danger-line: rgb(220 38 38 / 0.35);
 }

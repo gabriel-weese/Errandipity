@@ -22,8 +22,8 @@ function Icon({ children, strokeWidth = 2, size = 'size-5' }: IconProps & { chil
   );
 }
 
-export const PlusIcon = () => (
-  <Icon>
+export const PlusIcon = (props: IconProps) => (
+  <Icon {...props}>
     <path d="M12 5v14M5 12h14" />
   </Icon>
 );
@@ -55,6 +55,13 @@ export const CheckCircleIcon = () => (
   </Icon>
 );
 
+/** A bare tick, drawn heavier so it stays clear at small sizes. */
+export const CheckIcon = (props: IconProps) => (
+  <Icon strokeWidth={4} {...props}>
+    <path d="M5 13l4 4L19 7" />
+  </Icon>
+);
+
 export const HelpIcon = () => (
   <Icon>
     <circle cx="12" cy="12" r="9" />
@@ -62,9 +69,17 @@ export const HelpIcon = () => (
   </Icon>
 );
 
-export const ChevronIcon =({ direction }: { direction: 'left' | 'right' }) => (
-  <Icon>
-    <path d={direction === 'left' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} />
+const CHEVRON_PATHS = { left: 'M15 6l-6 6 6 6', right: 'M9 6l6 6-6 6', down: 'M6 9l6 6 6-6' };
+
+export const ChevronIcon = ({ direction, ...props }: IconProps & { direction: keyof typeof CHEVRON_PATHS }) => (
+  <Icon {...props}>
+    <path d={CHEVRON_PATHS[direction]} />
+  </Icon>
+);
+
+export const FolderIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
   </Icon>
 );
 
@@ -78,6 +93,19 @@ export const GearIcon = () => (
 export const FlagIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
+  </Icon>
+);
+
+export const EditIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" />
+  </Icon>
+);
+
+export const TagIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M3 12V4h8l10 10-8 8L3 12z" />
+    <path d="M7.5 8h.01" />
   </Icon>
 );
 

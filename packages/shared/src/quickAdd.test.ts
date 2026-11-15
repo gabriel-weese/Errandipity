@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, resolveQuickAdd } from './quickAdd';
+import { formatQuickEdit, parseQuickAdd, resolveQuickAdd, resolveQuickEdit } from './quickAdd';
+import type { Recurrence } from './schemas';
 
 describe('parseQuickAdd: priority', () => {
   it('reads !! followed by 1-5 as the priority', () => {
@@ -101,7 +102,7 @@ describe('parseQuickAdd: repeat', () => {
   });
 
   it('keeps invalid repeat words in the title', () => {
-    for (const form of ['$$Weekly:MXF', '$$Weekly:', '$$Monthly', '$$', '$$20']) {
+    for (const form of ['$$Weekly:MXF', '$$Weekly:', '$$Daily:1', '$$Monthly:', '$$Monthly:32', '$$Monthly:0', '$$Monthly:1,', '$$Monthly:third', '$$X', '$$X:0', '$$X:two', '$$X:3:4', '$$', '$$20']) {
       expect(parseQuickAdd(`Task ${form}`)).toEqual({ title: `Task ${form}` });
     }
   });
@@ -119,6 +120,7 @@ describe('resolveQuickAdd', () => {
       dueTime: null,
       priority: undefined,
       recurrence: { type: 'none' },
+      labelIds: [],
     });
   });
 
@@ -162,10 +164,245 @@ describe('resolveQuickAdd', () => {
       dueTime: '09:30',
       priority: 2,
       recurrence: { type: 'weekly', daysOfWeek: [1, 3, 5] },
+      labelIds: [],
     });
   });
 
   it('keeps the date for daily tasks', () => {
     expect(resolve('A $$Daily', '2026-11-19')).toMatchObject({ dueDate: '2026-11-19', recurrence: { type: 'daily' } });
+  });
+});
+
+const LABELS = [
+  { id: 'w', name: 'Work', color: 'gray' as const },
+  { id: 'h', name: 'Home Office', color: 'gray' as const },
+  { id: 'e', name: 'Errands', color: 'gray' as const },
+];
+
+describe('parseQuickAdd: labels', () => {
+  it('reads ## followed by a label name, ignoring case', () => {
+    expect(parseQuickAdd('Send report ##Work', LABELS)).toEqual({ title: 'Send report', labelIds: ['w'] });
+    expect(parseQuickAdd('Send report ##work', LABELS)).toEqual({ title: 'Send report', labelIds: ['w'] });
+  });
+
+  it('matches a name with spaces when it is written without them', () => {
+    expect(parseQuickAdd('Order desk ##HomeOffice', LABELS)).toEqual({ title: 'Order desk', labelIds: ['h'] });
+  });
+
+  it('adds up several labels and ignores a repeated one', () => {
+    expect(parseQuickAdd('A ##errands ##work ##Errands', LABELS)).toEqual({ title: 'A', labelIds: ['e', 'w'] });
+  });
+
+  it('keeps an unknown name in the title', () => {
+    expect(parseQuickAdd('Issue ##42 ##Work', LABELS)).toEqual({ title: 'Issue ##42', labelIds: ['w'] });
+    expect(parseQuickAdd('Send report ##Work')).toEqual({ title: 'Send report ##Work' });
+  });
+
+  it('passes the labels on to the task', () => {
+    expect(resolveQuickAdd(parseQuickAdd('A ##work', LABELS), '2026-11-14', '2026-11-14').labelIds).toEqual(['w']);
+  });
+});
+
+describe('parseQuickAdd: monthly and every-X-days repeats', () => {
+  it('reads monthly days, anchors and mixes of both', () => {
+    expect(parseQuickAdd('Rent $$Monthly:10').repeat).toEqual({ type: 'monthly', daysOfMonth: [10], anchors: [] });
+    expect(parseQuickAdd('Rent $$monthly:first').repeat).toEqual({ type: 'monthly', daysOfMonth: [], anchors: ['first'] });
+    expect(parseQuickAdd('Rent $$Monthly:15,1,15').repeat).toEqual({ type: 'monthly', daysOfMonth: [1, 15], anchors: [] });
+    expect(parseQuickAdd('Rent $$Monthly:LAST,10,first').repeat).toEqual({
+      type: 'monthly',
+      daysOfMonth: [10],
+      anchors: ['first', 'last'],
+    });
+  });
+
+  it('reads monthly without a day', () => {
+    expect(parseQuickAdd('Rent $$Monthly').repeat).toEqual({ type: 'monthly', daysOfMonth: [], anchors: [] });
+  });
+
+  it('reads $$X followed by a number of days', () => {
+    expect(parseQuickAdd('Water plants $$X:3')).toEqual({ title: 'Water plants', repeat: { type: 'interval', intervalDays: 3 } });
+    expect(parseQuickAdd('Water plants $$x:14').repeat).toEqual({ type: 'interval', intervalDays: 14 });
+  });
+});
+
+describe('resolveQuickAdd: monthly and every-X-days repeats', () => {
+  const TODAY = '2026-11-14';
+  const resolve = (text: string, rowDate = TODAY) => resolveQuickAdd(parseQuickAdd(text), rowDate, TODAY);
+
+  it('repeats monthly on the day of the task date when none is given', () => {
+    expect(resolve('A $$Monthly', '2026-11-20')).toMatchObject({
+      dueDate: '2026-11-20',
+      recurrence: { type: 'monthly', daysOfMonth: [20], anchors: [] },
+    });
+  });
+
+  it('starts a monthly task on the next chosen day when its date is not one', () => {
+    expect(resolve('A $$Monthly:10').dueDate).toBe('2026-12-10');
+    expect(resolve('A $$Monthly:14').dueDate).toBe('2026-11-14');
+    expect(resolve('A $$Monthly:20').dueDate).toBe('2026-11-20');
+    expect(resolve('A $$Monthly:first').dueDate).toBe('2026-12-01');
+    expect(resolve('A $$Monthly:10,last').dueDate).toBe('2026-11-30');
+    expect(resolve('A $$Monthly:middle')).toMatchObject({
+      dueDate: '2026-11-15',
+      recurrence: { type: 'monthly', daysOfMonth: [], anchors: ['middle'] },
+    });
+  });
+
+  it('keeps the date for every-X-days tasks', () => {
+    expect(resolve('A $$X:3', '2026-11-19')).toMatchObject({
+      dueDate: '2026-11-19',
+      recurrence: { type: 'interval', intervalDays: 3 },
+    });
+  });
+});
+
+describe('formatQuickEdit', () => {
+  const base = { title: 'Gym', priority: 3, dueDate: '2026-11-18', dueTime: null, labels: [] };
+  const withRule = (recurrence: Recurrence) => formatQuickEdit({ ...base, recurrence });
+
+  it('writes the title and priority for a plain task', () => {
+    expect(withRule({ type: 'none' })).toBe('Gym !!3');
+  });
+
+  it('writes the time, repeat and labels', () => {
+    expect(
+      formatQuickEdit({
+        ...base,
+        priority: 2,
+        dueTime: '09:30',
+        recurrence: { type: 'weekly', daysOfWeek: [5, 1, 3] },
+        labels: [{ id: 'h', name: 'Home Office', color: 'gray' as const }, { id: 'w', name: 'Work', color: 'gray' as const }],
+      }),
+    ).toBe('Gym !!2 %%9:30 $$Weekly:MWF ##HomeOffice ##Work');
+    expect(formatQuickEdit({ ...base, dueTime: '14:05', recurrence: { type: 'none' } })).toBe('Gym !!3 %%14:05');
+  });
+
+  it('writes every kind of repeat', () => {
+    expect(withRule({ type: 'daily' })).toBe('Gym !!3 $$Daily');
+    expect(withRule({ type: 'weekly', daysOfWeek: [0, 6] })).toBe('Gym !!3 $$Weekly:SU');
+    expect(withRule({ type: 'monthly', daysOfMonth: [15, 1], anchors: ['last'] })).toBe('Gym !!3 $$Monthly:1,15,last');
+    expect(withRule({ type: 'monthly', daysOfMonth: [], anchors: ['last', 'first'] })).toBe('Gym !!3 $$Monthly:first,last');
+    expect(withRule({ type: 'interval', intervalDays: 3 })).toBe('Gym !!3 $$X:3');
+  });
+});
+
+describe('resolveQuickEdit', () => {
+  const TODAY = '2026-11-14'; // a Saturday
+  const task = {
+    title: 'Gym',
+    priority: 2,
+    dueDate: '2026-11-18', // a Wednesday
+    dueTime: '09:30',
+    recurrence: { type: 'weekly', daysOfWeek: [1, 3] } as Recurrence,
+    labels: [{ id: 'w', name: 'Work', color: 'gray' as const }],
+  };
+  const START = 'Gym !!2 %%9:30 $$Weekly:MW ##Work';
+  const edit = (text: string, of = task) => resolveQuickEdit(parseQuickAdd(text, LABELS), of, TODAY);
+
+  it('starts from text that changes nothing', () => {
+    expect(formatQuickEdit(task)).toBe(START);
+    expect(edit(START)).toEqual({});
+  });
+
+  it('changes nothing for the untouched text of any kind of repeat', () => {
+    const rules: Recurrence[] = [
+      { type: 'none' },
+      { type: 'daily' },
+      { type: 'weekly', daysOfWeek: [6, 0] },
+      { type: 'monthly', daysOfMonth: [31, 1], anchors: ['middle'] },
+      { type: 'monthly', daysOfMonth: [], anchors: ['last', 'first'] },
+      { type: 'interval', intervalDays: 1000 },
+    ];
+    for (const recurrence of rules) {
+      const other = { ...task, recurrence, labels: [LABELS[1]!, LABELS[0]!] };
+      expect(edit(formatQuickEdit(other), other)).toEqual({});
+    }
+  });
+
+  it('renames the task', () => {
+    expect(edit('Gym session !!2 %%9:30 $$Weekly:MW ##Work')).toEqual({ title: 'Gym session' });
+  });
+
+  it('keeps the title when it is deleted', () => {
+    expect(edit('!!2 %%9:30 $$Weekly:MW ##Work')).toEqual({});
+  });
+
+  it('changes a field when its symbol is changed', () => {
+    expect(edit('Gym !!1 %%18:00 $$Monthly:first ##Work')).toEqual({
+      priority: 1,
+      dueTime: '18:00',
+      recurrence: { type: 'monthly', daysOfMonth: [], anchors: ['first'] },
+    });
+    expect(edit('Gym !!2 %%9:30 $$X:3 ##Work')).toEqual({ recurrence: { type: 'interval', intervalDays: 3 } });
+  });
+
+  it('clears a field when its symbol is taken out', () => {
+    expect(edit('Gym !!2 $$Weekly:MW ##Work')).toEqual({ dueTime: null });
+    expect(edit('Gym !!2 %%9:30 ##Work')).toEqual({ recurrence: { type: 'none' } });
+    expect(edit('Gym !!2 %%9:30 $$Weekly:MW')).toEqual({ labelIds: [] });
+    expect(edit('Gym %%9:30 $$Weekly:MW ##Work')).toEqual({ priority: 3 });
+  });
+
+  it('replaces the labels with the ones named', () => {
+    expect(edit('Gym !!2 %%9:30 $$Weekly:MW ##Work ##errands')).toEqual({ labelIds: ['w', 'e'] });
+    expect(edit('Gym !!2 %%9:30 $$Weekly:MW ##errands')).toEqual({ labelIds: ['e'] });
+  });
+
+  it('moves the task only when a day symbol is added', () => {
+    expect(edit(`${START} **tomorrow`)).toEqual({ dueDate: '2026-11-15' });
+    expect(edit(`${START} **Wed`)).toEqual({});
+  });
+
+  it('uses the day of the task, or of its new date, for a repeat without days', () => {
+    expect(edit('Gym !!2 %%9:30 $$Weekly ##Work')).toEqual({ recurrence: { type: 'weekly', daysOfWeek: [3] } });
+    expect(edit('Gym !!2 %%9:30 $$Monthly ##Work')).toEqual({
+      recurrence: { type: 'monthly', daysOfMonth: [18], anchors: [] },
+    });
+    expect(edit('Gym !!2 %%9:30 **Fri $$Weekly ##Work')).toEqual({
+      dueDate: '2026-11-20',
+      recurrence: { type: 'weekly', daysOfWeek: [5] },
+    });
+  });
+});
+
+describe('tasks without a date', () => {
+  const TODAY = '2026-11-14'; // a Saturday
+  const add = (text: string) => resolveQuickAdd(parseQuickAdd(text), null, TODAY);
+  const undated = {
+    title: 'Research',
+    priority: 3,
+    dueDate: null,
+    dueTime: null,
+    recurrence: { type: 'none' } as Recurrence,
+    labels: [],
+  };
+  const edit = (text: string) => resolveQuickEdit(parseQuickAdd(text), undated, TODAY);
+
+  it('adds a task with no date in a list without a day', () => {
+    expect(add('Research !!2')).toMatchObject({ title: 'Research', dueDate: null, recurrence: { type: 'none' } });
+  });
+
+  it('still takes a date from a day symbol', () => {
+    expect(add('Research **tomorrow').dueDate).toBe('2026-11-15');
+  });
+
+  it('starts a repeating task today, or on the first day it repeats on', () => {
+    expect(add('Standup $$Daily')).toMatchObject({ dueDate: TODAY, recurrence: { type: 'daily' } });
+    expect(add('Review $$Weekly:M')).toMatchObject({ dueDate: '2026-11-16', recurrence: { type: 'weekly', daysOfWeek: [1] } });
+  });
+
+  it('edits without giving the task a date', () => {
+    expect(formatQuickEdit(undated)).toBe('Research !!3');
+    expect(edit('Research !!3')).toEqual({});
+    expect(edit('Research !!1 %%9')).toEqual({ priority: 1, dueTime: '09:00' });
+  });
+
+  it('gives the task a date when a day symbol is added', () => {
+    expect(edit('Research !!3 **today')).toEqual({ dueDate: TODAY });
+  });
+
+  it("gives the task today's date when it is made to repeat", () => {
+    expect(edit('Research !!3 $$Daily')).toEqual({ recurrence: { type: 'daily' }, dueDate: TODAY });
+    expect(edit('Research !!3 $$Daily **tomorrow')).toEqual({ recurrence: { type: 'daily' }, dueDate: '2026-11-15' });
   });
 });

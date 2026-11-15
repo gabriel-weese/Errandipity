@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { formatUsDate } from '@errandipity/shared';
 
 const TOAST_DURATION_MS = 10_000;
@@ -7,6 +7,27 @@ export type ToastData =
   | { id: string; kind: 'completed'; taskId: string; title: string; nextDate: string | null }
   | { id: string; kind: 'goal'; title: string; message: string }
   | { id: string; kind: 'error'; message: string };
+
+/** Omit that keeps each member of a union separate, where the built-in Omit would merge them. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+/** A toast before it is given its id. */
+export type NewToast = DistributiveOmit<ToastData, 'id'>;
+
+/** The list of toasts on screen and the ways to change it. The functions keep their identity. */
+export function useToasts() {
+  const [toasts, setToasts] = useState<ToastData[]>([]);
+  const push = useCallback(
+    (toast: NewToast) => setToasts((all) => [...all, { ...toast, id: crypto.randomUUID() } as ToastData]),
+    [],
+  );
+  const dismiss = useCallback((id: string) => setToasts((all) => all.filter((t) => t.id !== id)), []);
+  /** Removes every toast the test matches. */
+  const dismissWhere = useCallback(
+    (matches: (toast: ToastData) => boolean) => setToasts((all) => all.filter((t) => !matches(t))),
+    [],
+  );
+  return { toasts, push, dismiss, dismissWhere };
+}
 
 interface Props {
   toasts: ToastData[];
@@ -44,7 +65,7 @@ function Toast({ toast, onDismiss, onUndo }: { toast: ToastData } & Omit<Props, 
     );
   }
   return (
-    <div className="flex items-start gap-3 rounded-lg bg-toast px-4 py-3 text-sm text-white shadow-lg">
+    <div className="flex items-start gap-3 rounded-lg border border-toast-line bg-toast px-4 py-3 text-sm text-white shadow-lg">
       <div className="flex-1">
         <div className="font-semibold">Task Completed</div>
         <div className="text-slate-300">{toast.title}</div>

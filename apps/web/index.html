@@ -10,6 +10,7 @@
     <script>
       // Apply the last known theme before first paint. The database is the source of
       // truth; this cached copy only prevents a flash while settings load.
+      // Keep in step with apply() in src/theme.ts. The key holds all the settings, not only the theme.
       (function () {
         try {
           var hint = JSON.parse(localStorage.getItem('errandipity-theme') || 'null');

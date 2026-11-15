@@ -1,20 +1,29 @@
-import type { Prisma, Task, TaskSeries } from '@prisma/client';
+import type { Prisma, TaskSeries } from '@prisma/client';
 import {
+  NEEDS_DATE,
   nextDueDate,
   todayLocal,
   type CreateTaskData,
   type EditScope,
+  type IsoDate,
   type Recurrence,
   type TaskDto,
   type UpdateTaskInput,
 } from '@errandipity/shared';
 import { prisma } from './db';
+import { ConflictError, NotFoundError } from './errors';
+import { byLabelName, toLabelDto } from './labelService';
+import { assertPlacement } from './projectService';
 
-export class NotFoundError extends Error {}
-export class ConflictError extends Error {}
+/** What every task query loads: the task's labels and project, and its series with the template labels. */
+const taskInclude = {
+  labels: true,
+  project: { select: { id: true, name: true } },
+  series: { include: { labels: true } },
+} satisfies Prisma.TaskInclude;
+type TaskWithSeries = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
 
-type TaskWithSeries = Task & { series: TaskSeries };
-
+/** Rebuilds the recurrence rule from a series row. The inverse of ruleColumns. */
 function ruleOf(series: TaskSeries): Recurrence {
   switch (series.recurrenceType) {
     case 'weekly':
@@ -34,6 +43,7 @@ function ruleOf(series: TaskSeries): Recurrence {
   }
 }
 
+/** The series columns for a rule. Columns that do not apply to its type are cleared. */
 function ruleColumns(rule: Recurrence) {
   return {
     recurrenceType: rule.type,
@@ -57,11 +67,22 @@ function toDto(task: TaskWithSeries): TaskDto {
     completedAt: task.completedAt?.toISOString() ?? null,
     timesRescheduled: task.timesRescheduled,
     recurrence: ruleOf(task.series),
+    labels: [...task.labels].sort(byLabelName).map(toLabelDto),
+    project: task.project,
+    sectionId: task.sectionId,
   };
 }
 
+/** The relation value that links exactly these labels; fails if any of them does not exist. */
+async function labelRefs(tx: Prisma.TransactionClient, labelIds: string[]) {
+  const ids = [...new Set(labelIds)];
+  const found = await tx.label.count({ where: { id: { in: ids } } });
+  if (found !== ids.length) throw new NotFoundError('One of the labels no longer exists');
+  return ids.map((id) => ({ id }));
+}
+
 async function getTask(tx: Prisma.TransactionClient, id: string): Promise<TaskWithSeries> {
-  const task = await tx.task.findUnique({ where: { id }, include: { series: true } });
+  const task = await tx.task.findUnique({ where: { id }, include: taskInclude });
   if (!task) throw new NotFoundError(`Task ${id} not found`);
   return task;
 }
@@ -70,9 +91,10 @@ async function getTask(tx: Prisma.TransactionClient, id: string): Promise<TaskWi
 async function spawnNext(
   tx: Prisma.TransactionClient,
   task: TaskWithSeries,
-  today: string,
+  today: IsoDate,
 ): Promise<TaskDto | null> {
-  if (task.series.archivedAt) return null;
+  // A repeating task always has a date; the check is for the type.
+  if (task.series.archivedAt || task.dueDate === null) return null;
   const dueDate = nextDueDate(ruleOf(task.series), { dueDate: task.dueDate, completedOn: today });
   if (!dueDate) return null;
   const next = await tx.task.create({
@@ -83,17 +105,32 @@ async function spawnNext(
       priority: task.series.priority,
       dueTime: task.series.dueTime,
       dueDate,
+      labels: { connect: task.series.labels.map(({ id }) => ({ id })) },
+      projectId: task.series.projectId,
+      sectionId: task.series.sectionId,
     },
-    include: { series: true },
+    include: taskInclude,
   });
   return toDto(next);
 }
 
-export async function listTasks(query: { from?: string; to?: string; status?: 'pending' | 'done' }) {
+export async function listTasks(query: { from?: IsoDate; to?: IsoDate; status?: 'pending' | 'done' }) {
+  // Without a range, tasks that have no date are included (first, as the database orders them).
+  const inRange = query.from || query.to ? { gte: query.from, lte: query.to } : undefined;
   const tasks = await prisma.task.findMany({
-    where: { dueDate: { gte: query.from, lte: query.to }, status: query.status },
-    include: { series: true },
+    where: { dueDate: inRange, status: query.status },
+    include: taskInclude,
     orderBy: { dueDate: 'asc' },
+  });
+  return tasks.map(toDto);
+}
+
+/** A project's completed tasks, newest first. */
+export async function listCompletedInProject(projectId: string) {
+  const tasks = await prisma.task.findMany({
+    where: { projectId, status: 'done' },
+    orderBy: { completedAt: 'desc' },
+    include: taskInclude,
   });
   return tasks.map(toDto);
 }
@@ -105,7 +142,7 @@ export async function listRecentlyCompleted(limit = 10) {
     orderBy: { completedAt: 'desc' },
     distinct: ['seriesId'],
     take: limit,
-    include: { series: true },
+    include: taskInclude,
   });
   return tasks.map(toDto);
 }
@@ -114,51 +151,92 @@ export async function listRecentlyCompleted(limit = 10) {
 export async function listOverdue(today = todayLocal()) {
   const tasks = await prisma.task.findMany({
     where: { status: 'pending', dueDate: { lt: today } },
-    include: { series: true },
+    include: taskInclude,
     orderBy: { dueDate: 'asc' },
   });
   return tasks.map(toDto);
 }
 
+/** Creates a task together with the series that defines it. */
 export async function createTask(input: CreateTaskData) {
-  const { title, notes, priority, dueDate, dueTime, recurrence } = input;
-  const task = await prisma.task.create({
-    data: {
+  const { title, notes, priority, dueDate, dueTime, recurrence, labelIds, projectId, sectionId } = input;
+  return prisma.$transaction(async (tx) => {
+    await assertPlacement(tx, projectId, sectionId);
+    const template = {
       title,
       notes,
       priority,
-      dueDate,
       dueTime,
-      series: { create: { title, notes, priority, dueTime, ...ruleColumns(recurrence) } },
-    },
-    include: { series: true },
+      projectId,
+      sectionId,
+      labels: { connect: await labelRefs(tx, labelIds) },
+    };
+    const series = await tx.taskSeries.create({ data: { ...template, ...ruleColumns(recurrence) } });
+    const task = await tx.task.create({ data: { ...template, dueDate, seriesId: series.id }, include: taskInclude });
+    return toDto(task);
   });
-  return toDto(task);
 }
 
 /**
  * scope "occurrence": changes only this task; the next one reverts to the series template.
  * scope "series": changes the template (and recurrence rule) as well as this task.
- * A changed due date applies to this task only and counts as a reschedule.
+ * A due date applies to this task only; moving it from one day to another counts as a
+ * reschedule, while giving a task its first date or removing its date does not.
+ * The project and section apply to the series and this task, whatever the scope.
  */
 export async function updateTask(id: string, scope: EditScope, input: UpdateTaskInput) {
-  const { recurrence, dueDate, ...fields } = input;
+  const { recurrence, dueDate, labelIds, projectId, sectionId, ...plainFields } = input;
   return prisma.$transaction(async (tx) => {
     const task = await getTask(tx, id);
     if (task.status !== 'pending') throw new ConflictError('Completed tasks cannot be edited');
+
+    const rule = scope === 'series' && recurrence ? recurrence : ruleOf(task.series);
+    if ((dueDate === undefined ? task.dueDate : dueDate) === null && rule.type !== 'none') {
+      throw new ConflictError(NEEDS_DATE);
+    }
+
+    if (projectId !== undefined || sectionId !== undefined) {
+      const project = projectId === undefined ? task.projectId : projectId;
+      // Moving to another project leaves the old project's section behind.
+      const keptSection = project === task.projectId ? task.sectionId : null;
+      const placement = { projectId: project, sectionId: sectionId === undefined ? keptSection : sectionId };
+      await assertPlacement(tx, placement.projectId, placement.sectionId);
+      await tx.taskSeries.update({ where: { id: task.seriesId }, data: placement });
+      await tx.task.update({ where: { id }, data: placement });
+    }
+
+    const fields = { ...plainFields, ...(labelIds ? { labels: { set: await labelRefs(tx, labelIds) } } : {}) };
     if (scope === 'series') {
       await tx.taskSeries.update({
         where: { id: task.seriesId },
         data: { ...fields, ...(recurrence ? ruleColumns(recurrence) : {}) },
       });
     }
-    const moved = dueDate !== undefined && dueDate !== task.dueDate;
+    const rescheduled = dueDate != null && task.dueDate !== null && dueDate !== task.dueDate;
     const updated = await tx.task.update({
       where: { id },
-      data: { ...fields, ...(moved ? { dueDate, timesRescheduled: { increment: 1 } } : {}) },
-      include: { series: true },
+      data: {
+        ...fields,
+        ...(dueDate !== undefined ? { dueDate } : {}),
+        ...(rescheduled ? { timesRescheduled: { increment: 1 } } : {}),
+      },
+      include: taskInclude,
     });
     return toDto(updated);
+  });
+}
+
+/** Marks the task done and, for recurring tasks, creates the next one (rescheduled count 0). */
+export async function completeTask(id: string, today = todayLocal()) {
+  return prisma.$transaction(async (tx) => {
+    const task = await getTask(tx, id);
+    if (task.status !== 'pending') throw new ConflictError('Task is already completed');
+    const completed = await tx.task.update({
+      where: { id },
+      data: { status: 'done', completedAt: new Date() },
+      include: taskInclude,
+    });
+    return { completed: toDto(completed), next: await spawnNext(tx, task, today) };
   });
 }
 
@@ -180,33 +258,22 @@ export async function uncompleteTask(id: string) {
     const restored = await tx.task.update({
       where: { id },
       data: { status: 'pending', completedAt: null },
-      include: { series: true },
+      include: taskInclude,
     });
     return toDto(restored);
   });
 }
 
-/** Marks the task done and, for recurring tasks, creates the next one (rescheduled count 0). */
-export async function completeTask(id: string, today = todayLocal()) {
-  return prisma.$transaction(async (tx) => {
-    const task = await getTask(tx, id);
-    if (task.status !== 'pending') throw new ConflictError('Task is already completed');
-    const completed = await tx.task.update({
-      where: { id },
-      data: { status: 'done', completedAt: new Date() },
-      include: { series: true },
-    });
-    return { completed: toDto(completed), next: await spawnNext(tx, task, today) };
-  });
-}
-
-/** Moves pending tasks to a new day and counts the move against each of them. */
-export async function rescheduleTasks(ids: string[], dueDate: string) {
+/**
+ * Moves pending tasks to a new day and counts the move against each of them.
+ * Completed tasks in `ids` are left untouched but still returned.
+ */
+export async function rescheduleTasks(ids: string[], dueDate: IsoDate) {
   await prisma.task.updateMany({
     where: { id: { in: ids }, status: 'pending' },
     data: { dueDate, timesRescheduled: { increment: 1 } },
   });
-  const tasks = await prisma.task.findMany({ where: { id: { in: ids } }, include: { series: true } });
+  const tasks = await prisma.task.findMany({ where: { id: { in: ids } }, include: taskInclude });
   return tasks.map(toDto);
 }
 

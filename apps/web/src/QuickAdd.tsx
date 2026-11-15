@@ -1,21 +1,34 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import {
   describeRecurrence,
   formatShortDate,
   formatTime12,
   parseQuickAdd,
   resolveQuickAdd,
+  type IsoDate,
 } from '@errandipity/shared';
-import { Link } from 'react-router';
-import { useApp } from './context';
-import { DetailLine, PRIORITY_BOX } from './TaskRow';
+import { useApp, useLabels } from './context';
+import { describeLabels, QuickAddInput } from './QuickAddInput';
+
+const NO_LABELS: string[] = [];
+
+interface Props {
+  /** The day of the list, or null for a list without one: tasks added there have no date. */
+  date: IsoDate | null;
+  /** Labels every task added here gets, on top of any named with ##. */
+  labelIds?: string[];
+  /** The project, and its section, that tasks added here go into. */
+  projectId?: string | null;
+  sectionId?: string | null;
+}
 
 /**
- * A one-line "add task" row for the bottom of a day's list. Symbols in the text
- * set the priority, day, time and repeat (see parseQuickAdd and the Help page).
+ * A one-line "add task" row for the bottom of a list. Symbols in the text
+ * set the priority, day, time, repeat and labels (see parseQuickAdd and the Help page).
  */
-export function QuickAdd({ date }: { date: string }) {
+export function QuickAdd({ date, labelIds = NO_LABELS, projectId = null, sectionId = null }: Props) {
   const { today, openEditor, quickAdd } = useApp();
+  const labels = useLabels().data ?? [];
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,10 +50,10 @@ export function QuickAdd({ date }: { date: string }) {
     );
   }
 
-  const task = resolveQuickAdd(parseQuickAdd(text), date, today);
+  const typed = resolveQuickAdd(parseQuickAdd(text, labels), date, today);
+  const task = { ...typed, labelIds: [...new Set([...labelIds, ...typed.labelIds])], projectId, sectionId };
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function submit() {
     if (!task.title || busy) return;
     setBusy(true);
     try {
@@ -54,62 +67,24 @@ export function QuickAdd({ date }: { date: string }) {
   }
 
   return (
-    <form
+    <QuickAddInput
+      text={text}
+      onTextChange={setText}
       onSubmit={submit}
-      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && !text.trim() && close()}
-      className="px-3 py-1.5"
-    >
-      <div className="flex items-center gap-3">
-        {/* Previews the checkbox colour once a priority symbol is recognised. */}
-        <span
-          aria-hidden="true"
-          title={task.priority ? `Priority ${task.priority}` : undefined}
-          className={`size-4 shrink-0 rounded border-2 ${
-            task.priority ? PRIORITY_BOX[task.priority] : 'border-dashed border-line-strong'
-          }`}
-        />
-        <input
-          autoFocus
-          aria-label={`Task name for ${date}`}
-          placeholder="Task name"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && close()}
-          className="min-w-0 flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-faint"
-        />
-        <Link
-          to="/help"
-          aria-label="Quick-add symbols help"
-          title="Symbols: !! priority, ** day, %% time, $$ repeat"
-          className="rounded px-1.5 text-sm font-semibold text-faint hover:bg-raised hover:text-ink"
-        >
-          ?
-        </Link>
-        <button
-          type="button"
-          aria-label="Open the full task form"
-          title="More options"
-          onClick={() => {
-            openEditor(undefined, task);
-            close();
-          }}
-          className="rounded p-1 text-faint hover:bg-raised hover:text-ink"
-        >
-          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-      </div>
-      {/* What the symbols typed so far will set. */}
-      <div className="pl-7" aria-live="polite">
-        <DetailLine
-          parts={[
-            task.dueDate !== date && formatShortDate(task.dueDate),
-            task.dueTime && formatTime12(task.dueTime),
-            describeRecurrence(task.recurrence),
-          ]}
-        />
-      </div>
-    </form>
+      onCancel={close}
+      onLeave={() => !text.trim() && close()}
+      inputLabel={date ? `Task name for ${date}` : 'Task name'}
+      priority={task.priority}
+      details={[
+        task.dueDate !== date && task.dueDate && formatShortDate(task.dueDate),
+        task.dueTime && formatTime12(task.dueTime),
+        describeRecurrence(task.recurrence),
+        describeLabels(labels.filter((label) => task.labelIds.includes(label.id)).map((label) => label.name)),
+      ]}
+      onMoreOptions={() => {
+        openEditor(undefined, task);
+        close();
+      }}
+    />
   );
 }

@@ -1,10 +1,21 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { addDays, describeRecurrence, formatDayHeading, sortDayTasks, type TaskDto } from '@errandipity/shared';
+import {
+  addDays,
+  compareSchedule,
+  describeRecurrence,
+  formatDayHeading,
+  isOverdue,
+  PRIORITIES,
+  priorityHint,
+  sortDayTasks,
+  type TaskDto,
+} from '@errandipity/shared';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useApp, useCompletedTasks, usePendingTasks } from './context';
-import { cardClass, CompletedBox, DetailLine, mutedClass, NotesLine, rowClass, TaskList } from './TaskRow';
+import { CompletedBox, DetailLine, LabelTags, NotesLine, TaskList } from './TaskRow';
+import { cardClass, QueryState, rowClass } from './ui';
 
-function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+export function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
@@ -16,22 +27,10 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
   );
 }
 
-export function QueryState({ query, children }: { query: { isPending: boolean; error: Error | null }; children: ReactNode }) {
-  if (query.isPending) return <p className={`text-sm ${mutedClass}`}>Loading…</p>;
-  if (query.error) {
-    return (
-      <p className="rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger-ink">
-        Could not load: {query.error.message}
-      </p>
-    );
-  }
-  return <>{children}</>;
-}
-
 /** Tasks whose day has passed, with one-click rescheduling. Renders nothing when there are none. */
-function OverdueSection({ tasks }: { tasks: TaskDto[] }) {
+export function OverdueSection({ tasks }: { tasks: TaskDto[] }) {
   const { today, reschedule } = useApp();
-  const overdue = tasks.filter((t) => t.dueDate < today);
+  const overdue = tasks.filter((t) => isOverdue(t, today));
   if (overdue.length === 0) return null;
   return (
     <Section
@@ -53,6 +52,8 @@ function OverdueSection({ tasks }: { tasks: TaskDto[] }) {
 
 /** How many more days the Upcoming list gains each time the end comes near. */
 const UPCOMING_PAGE_DAYS = 30;
+/** A guess at one day's height in pixels; real heights are measured once rendered. */
+const ESTIMATED_DAY_HEIGHT = 110;
 
 /**
  * Every day from today onward, without end. Only the days near the viewport are
@@ -66,11 +67,15 @@ export function UpcomingView() {
 
   const byDate = useMemo(() => {
     const map = new Map<string, TaskDto[]>();
-    for (const task of tasks) map.set(task.dueDate, [...(map.get(task.dueDate) ?? []), task]);
+    for (const task of tasks) {
+      // Tasks without a date have no day to appear under.
+      if (task.dueDate) map.set(task.dueDate, [...(map.get(task.dueDate) ?? []), task]);
+    }
     return map;
   }, [tasks]);
 
   // The list starts below the header and the overdue section, whose height varies.
+  // The effect runs after every render on purpose: anything above the list can change its offset.
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   useLayoutEffect(() => {
@@ -81,12 +86,13 @@ export function UpcomingView() {
 
   const virtualizer = useWindowVirtualizer({
     count: dayCount,
-    estimateSize: () => 110,
+    estimateSize: () => ESTIMATED_DAY_HEIGHT,
     overscan: 5,
     scrollMargin,
   });
   const days = virtualizer.getVirtualItems();
   const lastVisible = days[days.length - 1]?.index ?? 0;
+  // Load another page when the last rendered day is within a week of the end.
   useEffect(() => {
     if (lastVisible >= dayCount - 7) setDayCount((count) => count + UPCOMING_PAGE_DAYS);
   }, [lastVisible, dayCount]);
@@ -135,33 +141,23 @@ export function TodayView() {
   );
 }
 
-const PRIORITY_HEADINGS: Record<number, string> = {
-  1: 'Priority 1 (highest)',
-  2: 'Priority 2',
-  3: 'Priority 3',
-  4: 'Priority 4',
-  5: 'Priority 5 (lowest)',
-};
-
-/** Every pending task grouped by priority, with no dates shown. */
+/** Every pending task grouped by priority, with no dates shown. The only view that lists a task with no date and no project. */
 export function AllTasksView() {
   const query = usePendingTasks();
   const tasks = query.data ?? [];
-  // Within a priority, soonest first, so the order is stable even though dates are hidden.
-  const inGroupOrder = (a: TaskDto, b: TaskDto) =>
-    a.dueDate.localeCompare(b.dueDate) ||
-    (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99') ||
-    a.title.localeCompare(b.title);
+  // Within a priority, soonest first and tasks without a date last, so the order is
+  // stable even though dates are hidden.
+  const inGroupOrder = (a: TaskDto, b: TaskDto) => compareSchedule(a, b) || a.title.localeCompare(b.title);
 
   return (
     <QueryState query={query}>
       <div className="space-y-6">
-        {tasks.length === 0 && <p className={`text-sm ${mutedClass}`}>No tasks yet.</p>}
-        {[1, 2, 3, 4, 5].map((priority) => {
+        {tasks.length === 0 && <p className="text-sm text-muted">No tasks yet.</p>}
+        {PRIORITIES.map((priority) => {
           const group = tasks.filter((t) => t.priority === priority).sort(inGroupOrder);
           if (group.length === 0) return null;
           return (
-            <Section key={priority} title={PRIORITY_HEADINGS[priority] ?? `Priority ${priority}`}>
+            <Section key={priority} title={`Priority ${priority}${priorityHint(priority)}`}>
               <TaskList tasks={group} hideSchedule />
             </Section>
           );
@@ -171,18 +167,20 @@ export function AllTasksView() {
   );
 }
 
-function CompletedRow({ task }: { task: TaskDto }) {
+/** A completed task, with a button that makes it pending again. */
+export function CompletedRow({ task }: { task: TaskDto }) {
   const { undoComplete } = useApp();
   return (
     <li className={rowClass}>
       <CompletedBox priority={task.priority} />
       <div className="min-w-40 flex-1">
-        <div className={`text-sm font-medium line-through ${mutedClass}`}>{task.title}</div>
+        <div className="text-sm font-medium text-muted line-through">{task.title}</div>
         <DetailLine
           parts={[
             task.completedAt &&
               `Completed ${new Date(task.completedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`,
             describeRecurrence(task.recurrence),
+            task.labels.length > 0 && <LabelTags labels={task.labels} />,
           ]}
         />
         <NotesLine notes={task.notes} />
@@ -204,7 +202,7 @@ export function CompletedView() {
   return (
     <QueryState query={query}>
       {tasks.length === 0 ? (
-        <p className={`text-sm ${mutedClass}`}>Nothing completed yet.</p>
+        <p className="text-sm text-muted">Nothing completed yet.</p>
       ) : (
         <ul className={cardClass}>
           {tasks.map((task) => (

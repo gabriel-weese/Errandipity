@@ -1,4 +1,4 @@
-import { addDays, dayOfMonth, dayOfWeek, daysInMonth, type IsoDate } from './dates';
+import { addDays, dayOfMonth, dayOfWeek, daysInMonth, WEEKDAYS_SHORT, type IsoDate } from './dates';
 import type { MonthlyAnchor, Recurrence } from './schemas';
 
 /**
@@ -6,7 +6,7 @@ import type { MonthlyAnchor, Recurrence } from './schemas';
  * or null if the task does not recur.
  *
  * - interval: counted from the completion date.
- * - weekly / monthly: the first matching day after both the completion date and
+ * - daily / weekly / monthly: the first matching day after both the completion date and
  *   the task's own due date, so finishing early never re-creates the same day
  *   and finishing late never creates a task that is already overdue.
  */
@@ -30,6 +30,7 @@ export function nextDueDate(
   }
 
   // Monthly: the earliest upcoming day that matches any specific day or anchor.
+  // 62 days always covers two whole months, so every day-of-month and anchor comes up at least once.
   for (let i = 1; i <= 62; i++) {
     const candidate = addDays(base, i);
     const lastDay = daysInMonth(candidate);
@@ -55,14 +56,14 @@ export function anchorDay(anchor: MonthlyAnchor, lastDay: number): number {
 
 const ANCHOR_ORDER: MonthlyAnchor[] = ['first', 'middle', 'last'];
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
+/** A short label for a rule, such as "Weekly: Mon, Wed", or null if the task does not repeat. */
 export function describeRecurrence(rule: Recurrence): string | null {
   switch (rule.type) {
     case 'none':
       return null;
     case 'weekly':
-      return `Weekly: ${[...rule.daysOfWeek].sort().map((d) => WEEKDAYS[d]).join(', ')}`;
+      // Default (string) sort is safe here: the values are single digits 0-6.
+      return `Weekly: ${[...rule.daysOfWeek].sort().map((d) => WEEKDAYS_SHORT[d]).join(', ')}`;
     case 'daily':
       return 'Daily';
     case 'monthly': {

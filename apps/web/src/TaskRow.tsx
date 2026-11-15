@@ -1,8 +1,11 @@
-import { describeRecurrence, formatTime12, type TaskDto } from '@errandipity/shared';
-import { Fragment, type ReactNode } from 'react';
+import { describeRecurrence, formatTime12, isOverdue, type IsoDate, type LabelDto, type TaskDto } from '@errandipity/shared';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useApp } from './context';
+import { CheckIcon, FolderIcon } from './icons';
 import { QuickAdd } from './QuickAdd';
 import { RowActions } from './RowActions';
+import { TaskRowEditor } from './TaskRowEditor';
+import { accentButtonClass, cardClass, LabelIcon, rowClass } from './ui';
 
 /** Checkbox outline colours by priority (1 = highest). */
 export const PRIORITY_BOX: Record<number, string> = {
@@ -20,11 +23,6 @@ const PRIORITY_FILLED: Record<number, string> = {
   5: 'border-slate-400 bg-slate-400',
 };
 
-export const cardClass = 'rounded-lg border border-line bg-surface';
-export const rowClass =
-  'flex flex-wrap items-start gap-3 border-b border-line-soft px-3 py-2 last:border-b-0';
-export const mutedClass = 'text-muted';
-
 /** The completed counterpart of a task's checkbox: ticked and filled with its priority colour. */
 export function CompletedBox({ priority }: { priority: number }) {
   return (
@@ -34,9 +32,7 @@ export function CompletedBox({ priority }: { priority: number }) {
       title={`Priority ${priority}`}
       className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border-2 text-white ${PRIORITY_FILLED[priority] ?? ''}`}
     >
-      <svg viewBox="0 0 24 24" className="size-3" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M5 13l4 4L19 7" />
-      </svg>
+      <CheckIcon size="size-3" />
     </span>
   );
 }
@@ -46,7 +42,7 @@ export function DetailLine({ parts }: { parts: (ReactNode | false | null | undef
   const shown = parts.filter(Boolean);
   if (shown.length === 0) return null;
   return (
-    <div className={`text-xs ${mutedClass}`}>
+    <div className="text-xs text-muted">
       {shown.map((part, index) => (
         <Fragment key={index}>
           {index > 0 && <span aria-hidden="true"> · </span>}
@@ -57,6 +53,31 @@ export function DetailLine({ parts }: { parts: (ReactNode | false | null | undef
   );
 }
 
+/** A task's labels as small tags, for use in a DetailLine. Renders nothing when there are none. */
+export function LabelTags({ labels }: { labels: LabelDto[] }) {
+  if (labels.length === 0) return null;
+  return (
+    <span className="inline-flex flex-wrap gap-1 align-bottom">
+      {labels.map((label) => (
+        <span key={label.id} className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 text-accent-ink">
+          <LabelIcon color={label.color} size="size-3" />
+          {label.name}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** A task's project as a small tag, for use in a DetailLine. */
+function ProjectTag({ name }: { name: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 align-bottom">
+      <FolderIcon size="size-3" />
+      {name}
+    </span>
+  );
+}
+
 /** The first line of a task's notes, cut off with an ellipsis when there is more. */
 export function NotesLine({ notes }: { notes: string }) {
   const text = notes.trim();
@@ -64,7 +85,7 @@ export function NotesLine({ notes }: { notes: string }) {
   const [firstLine = '', ...rest] = text.split(/\r?\n/);
   return (
     // `truncate` adds the ellipsis when the line is too wide; the explicit one covers further lines.
-    <div className={`truncate text-xs ${mutedClass}`} title={text}>
+    <div className="truncate text-xs text-muted" title={text}>
       {firstLine}
       {rest.length > 0 && '…'}
     </div>
@@ -77,12 +98,26 @@ interface TaskRowProps {
   showDate?: boolean;
   /** Hide the time and date, and the controls that change them. */
   hideSchedule?: boolean;
+  /** Leave out the project's name (for lists inside the project). */
+  hideProject?: boolean;
 }
 
-/** A pending task. The checkbox colour shows its priority; clicking the title opens the edit dialog. */
-export function TaskRow({ task, showDate = false, hideSchedule = false }: TaskRowProps) {
+/**
+ * A pending task. The checkbox colour shows its priority; clicking the title opens the
+ * edit dialog, and the pencil icon swaps the row for the quick-add line.
+ */
+export function TaskRow({ task, showDate = false, hideSchedule = false, hideProject = false }: TaskRowProps) {
   const { today, openEditor, complete, reschedule } = useApp();
-  const overdue = task.dueDate < today;
+  const overdue = isOverdue(task, today);
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <li className="border-b border-line-soft last:border-b-0">
+        <TaskRowEditor task={task} onDone={() => setEditing(false)} />
+      </li>
+    );
+  }
 
   return (
     <li className={`group ${rowClass}`}>
@@ -98,9 +133,11 @@ export function TaskRow({ task, showDate = false, hideSchedule = false }: TaskRo
         <div className="text-sm font-medium hover:underline">{task.title}</div>
         <DetailLine
           parts={[
-            showDate && !hideSchedule && `Due ${task.dueDate}`,
+            showDate && !hideSchedule && task.dueDate && `Due ${task.dueDate}`,
             !hideSchedule && task.dueTime && formatTime12(task.dueTime),
             describeRecurrence(task.recurrence),
+            task.project && !hideProject && <ProjectTag name={task.project.name} />,
+            task.labels.length > 0 && <LabelTags labels={task.labels} />,
             task.timesRescheduled > 0 && (
               <span className="text-warn">Rescheduled {task.timesRescheduled}×</span>
             ),
@@ -113,12 +150,12 @@ export function TaskRow({ task, showDate = false, hideSchedule = false }: TaskRo
           <button
             type="button"
             onClick={() => reschedule([task.id], today)}
-            className="rounded bg-accent px-2 py-1 text-xs font-medium text-on-accent hover:bg-accent-hover"
+            className={`rounded px-2 py-1 text-xs ${accentButtonClass}`}
           >
             Move to today
           </button>
         )}
-        <RowActions task={task} schedule={!hideSchedule} />
+        <RowActions task={task} schedule={!hideSchedule} onEdit={() => setEditing(true)} />
       </div>
     </li>
   );
@@ -127,18 +164,25 @@ export function TaskRow({ task, showDate = false, hideSchedule = false }: TaskRo
 interface TaskListProps extends Omit<TaskRowProps, 'task'> {
   tasks: TaskDto[];
   /** Adds a quick-add row at the bottom that creates tasks on this date. */
-  addDate?: string;
+  addDate?: IsoDate;
+  /** Labels given to tasks created from the quick-add row. */
+  addLabelIds?: string[];
+  /**
+   * Adds a quick-add row that creates tasks in this project and section. Without
+   * `addDate` they have no date.
+   */
+  addTo?: { projectId: string; sectionId: string | null };
 }
 
-export function TaskList({ tasks, addDate, ...rowProps }: TaskListProps) {
+export function TaskList({ tasks, addDate, addLabelIds, addTo, ...rowProps }: TaskListProps) {
   return (
     <ul className={cardClass}>
       {tasks.map((task) => (
         <TaskRow key={task.id} task={task} {...rowProps} />
       ))}
-      {addDate && (
+      {(addDate || addTo) && (
         <li className="border-b border-line-soft last:border-b-0">
-          <QuickAdd date={addDate} />
+          <QuickAdd date={addDate ?? null} labelIds={addLabelIds} {...addTo} />
         </li>
       )}
     </ul>

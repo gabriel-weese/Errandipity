@@ -33,6 +33,10 @@ packages/shared  Zod schemas, DTO types, recurrence and sorting logic
 - Rescheduling moves a task to another day and increments `timesRescheduled`.
   The next task created on completion starts again at 0.
 - A task is overdue once its due day has passed.
+- A task may have no date (`dueDate: null`). It is never overdue and cannot repeat. With a
+  project it shows on the project's page (and in the Labels view, under "No date");
+  without one it shows only in All Tasks, under its priority. Giving a task its first
+  date, or removing its date, is not a reschedule.
 - Day order: tasks with a time first, chronologically; then tasks without a time,
   by priority (1 = highest, 5 = lowest).
 - Edits and deletes take `?scope=occurrence` (this task only) or `?scope=series`
@@ -41,15 +45,55 @@ packages/shared  Zod schemas, DTO types, recurrence and sorting logic
 ## Settings and goals
 
 `UserSettings` holds one row for the local user. The theme follows the operating
-system while `matchSystem` is on (the default); otherwise `theme` (light or dark) applies.
-It also stores the dashboard side and collapsed state, and the daily and weekly goals.
+system while `matchSystem` is on (the default); otherwise `theme` (light, dark, dusk, lagoon, meadow or reef) applies.
+It also stores the dashboard side and collapsed state, whether the dashboard's project list
+is open, and the daily and weekly goals.
 
-Themes are sets of colour tokens in `apps/web/src/index.css` (Light, Dark, Dusk). Components
+Themes are sets of colour tokens in `apps/web/src/index.css` (Light, Dark, Dusk, Lagoon, Meadow, Reef). Components
 use token classes such as `bg-surface` and `text-muted`, so a new theme is one more block of
 values there plus an entry in `themeSchema` and the Settings page.
 
 Goal progress is counted from the task history (completions since local midnight and
 since Monday), not stored, so undoing a completion lowers it. A goal of 0 is off.
+
+## Labels
+
+A `Label` is a user-defined tag, managed on the Settings page; the API allows at most 10.
+Each has one of a fixed list of colours (`LABEL_COLORS`), which tints its tag icon; the exact
+shade of each colour is a theme token (`--label-red` and so on in `index.css`).
+A task can carry several. Labels follow the task model above: the series holds the set each
+new occurrence starts with, and each task holds its own, so an edit with `scope=occurrence`
+changes one task only. Names must be distinct ignoring case and spaces, because quick-add
+text refers to a label as `##name` with the spaces left out. Deleting a label removes it
+from every task.
+
+The Labels view (`/labels?ids=a,b`) shows pending tasks carrying any of the chosen labels,
+by day, leaving out days with none.
+
+## Projects
+
+A `Project` groups the tasks that lead to one goal. It has a name, an objective, a
+description (both plain text), an optional target date and its own sort order. A
+`ProjectSection` subdivides a project; sections are shown in creation order. A task belongs
+to at most one project and, within it, at most one section. Labels are separate: a task can
+have both.
+
+- The project and section are stored on the series and copied to each task, so they always
+  apply to the whole series, whatever the edit scope. Moving a task to another project
+  clears its section.
+- Progress ("3 / 8") is counted from the project's tasks, completed and pending, not stored.
+  Every completed occurrence of a repeating task counts.
+- Each project orders its task lists by priority, then due date and time, or the reverse
+  (`sortProjectTasks`); tasks without a date come last.
+- Deleting a section leaves its tasks in the project without a section. Deleting a project
+  deletes all of its tasks, completed ones included.
+- Project names are distinct ignoring case, as are section names within a project.
+
+The Projects view (`/projects`) lists the projects; a project's page (`/projects/:id`) shows
+its details, its pending tasks by section with a quick-add row in each, a line to add a
+section, and its completed tasks. Quick-add there creates tasks without a date unless the
+text has a `**` day or a `$$` repeat. In the dashboard, Projects opens to list the projects,
+and the project being viewed lists its sections.
 
 ## Development notes
 
@@ -66,6 +110,11 @@ SQLite-specific types to keep this a configuration change.
 ## Quick-add symbols
 
 The "+ Add task" line accepts symbols as separate words: `!!1`-`!!5` (priority),
-`**Mon` / `**Today` / `**Tomorrow` (day), `%%9:30` / `%%7pm` (time) and `$$Daily` /
-`$$Weekly` / `$$Weekly:MWF` (repeat). They are defined, with their help text, in
-`packages/shared/src/quickAdd.ts`; the in-app Help page is generated from that list.
+`**Mon` / `**Today` / `**Tomorrow` (day), `%%9:30` / `%%7pm` (time), `$$Daily` /
+`$$Weekly` / `$$Weekly:MWF` / `$$Monthly:10` / `$$Monthly:first` / `$$X:3` (repeat) and `##Work` (label). They are defined, with their help
+text, in `packages/shared/src/quickAdd.ts`; the in-app Help page is generated from that list.
+
+The pencil icon on a task row opens the same line for that task (`TaskRowEditor`), filled in by
+`formatQuickEdit` with the title and the symbols for its priority, time, repeat and labels. The
+line then describes the whole task apart from its day, so removing a symbol clears that field:
+see `resolveQuickEdit`.

@@ -1,5 +1,15 @@
-import { addDays, dayOfWeek, type IsoDate } from './dates';
-import type { Recurrence } from './schemas';
+import { addDays, dayOfMonth, dayOfWeek, pad2, type IsoDate } from './dates';
+import { nextDueDate } from './recurrence';
+import {
+  DEFAULT_PRIORITY,
+  labelKey,
+  monthlyAnchorSchema,
+  type LabelDto,
+  type MonthlyAnchor,
+  type Recurrence,
+  type TaskDto,
+  type UpdateTaskInput,
+} from './schemas';
 
 /** What a line of quick-add text asks for. Fields are absent unless a symbol set them. */
 export interface QuickAddResult {
@@ -9,8 +19,24 @@ export interface QuickAddResult {
   date?: { weekday: number } | { daysFromToday: number };
   /** "HH:mm" */
   dueTime?: string;
-  /** Weekly without `daysOfWeek` means "on the weekday of the task's date". */
-  repeat?: { type: 'daily' } | { type: 'weekly'; daysOfWeek?: number[] };
+  repeat?: QuickAddRepeat;
+  /** Every label named with ##, in the order given. */
+  labelIds?: string[];
+}
+
+/**
+ * A repeat as typed. Weekly without `daysOfWeek`, and monthly with neither days nor
+ * anchors, mean "on the day of the task's date" (see ruleFor).
+ */
+type QuickAddRepeat =
+  | { type: 'daily' }
+  | { type: 'weekly'; daysOfWeek?: number[] }
+  | { type: 'monthly'; daysOfMonth: number[]; anchors: MonthlyAnchor[] }
+  | { type: 'interval'; intervalDays: number };
+
+/** What a symbol may look up while reading its value. */
+interface QuickAddContext {
+  labels: readonly LabelDto[];
 }
 
 /**
@@ -27,7 +53,7 @@ interface QuickAddSymbol {
   description: string;
   forms: string[];
   examples: { input: string; result: string }[];
-  read: (value: string, result: QuickAddResult) => boolean;
+  read: (value: string, result: QuickAddResult, context: QuickAddContext) => boolean;
 }
 
 const WEEKDAY_NAMES: Record<string, number> = {
@@ -54,18 +80,57 @@ export function parseTimeText(value: string): string | null {
   if (minute > 59) return null;
   if (half) {
     if (hour < 1 || hour > 12) return null;
+    // 12 AM is hour 0 and 12 PM is hour 12, hence the modulo before adding the afternoon offset.
     hour = (hour % 12) + (half === 'p' ? 12 : 0);
   } else if (hour > 23) {
     return null; // Without AM or PM the hour is read on the 24-hour clock.
   }
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return `${pad2(hour)}:${pad2(minute)}`;
+}
+
+/** In the order they are written. */
+const ANCHOR_WORDS: readonly MonthlyAnchor[] = monthlyAnchorSchema.options;
+
+/** Reads what follows $$: "weekly:mwf", "monthly:10,last", "x:3". Null if it is not a repeat. */
+function parseRepeat(value: string): QuickAddRepeat | null {
+  const [kind, detail, ...rest] = value.toLowerCase().split(':');
+  if (rest.length > 0 || detail === '') return null;
+  switch (kind) {
+    case 'daily':
+      return detail === undefined ? { type: 'daily' } : null;
+    case 'weekly':
+      if (detail === undefined) return { type: 'weekly' };
+      if (!/^[mtwhfsu]+$/.test(detail)) return null;
+      // Default (string) sort is safe here: the values are single digits 0-6.
+      return { type: 'weekly', daysOfWeek: [...new Set([...detail].map((l) => DAY_LETTERS[l]!))].sort() };
+    case 'monthly': {
+      const days = new Set<number>();
+      const anchors = new Set<string>();
+      for (const item of detail?.split(',') ?? []) {
+        if ((ANCHOR_WORDS as readonly string[]).includes(item)) anchors.add(item);
+        else if (/^\d{1,2}$/.test(item) && Number(item) >= 1 && Number(item) <= 31) days.add(Number(item));
+        else return null;
+      }
+      return {
+        type: 'monthly',
+        daysOfMonth: [...days].sort((a, b) => a - b),
+        anchors: ANCHOR_WORDS.filter((anchor) => anchors.has(anchor)),
+      };
+    }
+    case 'x':
+      return detail !== undefined && /^[1-9]\d{0,4}$/.test(detail)
+        ? { type: 'interval', intervalDays: Number(detail) }
+        : null;
+    default:
+      return null;
+  }
 }
 
 const SYMBOLS: QuickAddSymbol[] = [
   {
     prefix: '!!',
     label: 'Priority',
-    description: 'Sets the priority, from 1 (highest) to 5 (lowest). Without it the priority is 3.',
+    description: `Sets the priority, from 1 (highest) to 5 (lowest). Without it the priority is ${DEFAULT_PRIORITY}.`,
     forms: ['!!1', '!!2', '!!3', '!!4', '!!5'],
     examples: [
       { input: 'Call the bank !!1', result: '"Call the bank" at priority 1' },
@@ -116,24 +181,49 @@ const SYMBOLS: QuickAddSymbol[] = [
     prefix: '$$',
     label: 'Repeat',
     description:
-      'Makes the task repeat, starting on its date. For chosen days use the letters M T W H F S U, where H is Thursday and U is Sunday; if the date is not one of them, the task starts on the next one that is.',
-    forms: ['$$Daily', '$$Weekly', '$$Weekly:MWF', '$$Weekly:SU'],
+      'Makes the task repeat, starting on its date. Weekly takes day letters M T W H F S U, where H is Thursday and U is Sunday. Monthly takes days of the month and the words first, middle and last, separated by commas. X takes a number of days, counted from the day the task is completed. Without days, weekly and monthly use the day of the task\'s date. If the date is not one of the chosen days, the task starts on the next one that is.',
+    forms: [
+      '$$Daily',
+      '$$Weekly',
+      '$$Weekly:MWF',
+      '$$Weekly:SU',
+      '$$Monthly',
+      '$$Monthly:10',
+      '$$Monthly:1,15',
+      '$$Monthly:first',
+      '$$Monthly:10,last',
+      '$$X:3',
+    ],
     examples: [
       { input: 'Vitamins $$Daily', result: '"Vitamins" every day' },
       { input: 'Gym $$Weekly:MWF', result: '"Gym" every Monday, Wednesday and Friday' },
       { input: 'Review **Fri $$Weekly', result: '"Review" every Friday, starting next Friday' },
+      { input: 'Pay rent $$Monthly:first', result: '"Pay rent" on the first day of every month' },
+      { input: 'Invoices $$Monthly:10,last', result: '"Invoices" on the 10th and the last day of every month' },
+      { input: 'Water plants $$X:3', result: '"Water plants" again 3 days after each time it is completed' },
     ],
     read: (value, result) => {
-      if (/^daily$/i.test(value)) {
-        result.repeat = { type: 'daily' };
-        return true;
-      }
-      const weekly = /^weekly(?::([mtwhfsu]+))?$/i.exec(value);
-      if (!weekly) return false;
-      const letters = weekly[1]?.toLowerCase();
-      result.repeat = letters
-        ? { type: 'weekly', daysOfWeek: [...new Set([...letters].map((l) => DAY_LETTERS[l]!))].sort() }
-        : { type: 'weekly' };
+      const repeat = parseRepeat(value);
+      if (!repeat) return false;
+      result.repeat = repeat;
+      return true;
+    },
+  },
+  {
+    prefix: '##',
+    label: 'Label',
+    description:
+      'Adds one of your labels, which are created in Settings. Write the label\'s name without spaces; capitals do not matter. Use it more than once to add several labels. A name that is not one of your labels stays in the title.',
+    forms: ['##Work', '##HomeOffice'],
+    examples: [
+      { input: 'Send report ##Work', result: '"Send report" with the label Work' },
+      { input: 'Fix shelf ##Home ##Weekend', result: '"Fix shelf" with the labels Home and Weekend' },
+      { input: 'Order desk ##homeoffice', result: '"Order desk" with the label Home Office' },
+    ],
+    read: (value, result, { labels }) => {
+      const label = labels.find((l) => labelKey(l.name) === value.toLowerCase());
+      if (!label) return false;
+      if (!result.labelIds?.includes(label.id)) result.labelIds = [...(result.labelIds ?? []), label.id];
       return true;
     },
   },
@@ -150,14 +240,15 @@ export const QUICK_ADD_HELP = SYMBOLS.map(({ prefix, label, description, forms, 
 
 /**
  * Splits quick-add text into a title and the settings given by its symbols.
- * Symbols may appear anywhere; when one is repeated the last occurrence wins.
+ * Symbols may appear anywhere; when one is repeated the last occurrence wins,
+ * except labels, which add up. `labels` are the user's labels, for ##.
  */
-export function parseQuickAdd(text: string): QuickAddResult {
+export function parseQuickAdd(text: string, labels: readonly LabelDto[] = []): QuickAddResult {
   const result: QuickAddResult = { title: '' };
   const titleWords: string[] = [];
   for (const word of text.trim().split(/\s+/)) {
     const symbol = SYMBOLS.find((s) => word.startsWith(s.prefix));
-    if (!symbol?.read(word.slice(symbol.prefix.length), result)) titleWords.push(word);
+    if (!symbol?.read(word.slice(symbol.prefix.length), result, { labels })) titleWords.push(word);
   }
   result.title = titleWords.join(' ');
   return result;
@@ -165,36 +256,133 @@ export function parseQuickAdd(text: string): QuickAddResult {
 
 export interface QuickAddTask {
   title: string;
-  dueDate: IsoDate;
+  /** null = no date. */
+  dueDate: IsoDate | null;
   dueTime: string | null;
   priority?: number;
   recurrence: Recurrence;
+  labelIds: string[];
+}
+
+/** The date a day symbol asks for, or null when there is none. */
+function requestedDate(date: QuickAddResult['date'], today: IsoDate): IsoDate | null {
+  if (!date) return null;
+  if ('daysFromToday' in date) return addDays(today, date.daysFromToday);
+  // The next occurrence strictly after today.
+  return nextOnOrAfter(addDays(today, 1), [date.weekday]);
+}
+
+/** The recurrence rule a typed repeat stands for, on a task due on `date`. */
+function ruleFor(repeat: QuickAddRepeat | undefined, date: IsoDate): Recurrence {
+  if (!repeat) return { type: 'none' };
+  switch (repeat.type) {
+    case 'weekly':
+      return { type: 'weekly', daysOfWeek: repeat.daysOfWeek ?? [dayOfWeek(date)] };
+    case 'monthly': {
+      const unspecified = repeat.daysOfMonth.length + repeat.anchors.length === 0;
+      return { ...repeat, daysOfMonth: unspecified ? [dayOfMonth(date)] : repeat.daysOfMonth };
+    }
+    default:
+      return repeat;
+  }
 }
 
 /**
  * Turns parsed quick-add text into the task to create.
- * `rowDate` is the day of the list being typed in; a day symbol replaces it.
+ * `rowDate` is the day of the list being typed in; a day symbol replaces it. In a list
+ * without a day (null) the task has no date, unless it repeats: then it starts today.
  */
-export function resolveQuickAdd(parsed: QuickAddResult, rowDate: IsoDate, today: IsoDate): QuickAddTask {
-  let dueDate = rowDate;
-  if (parsed.date && 'daysFromToday' in parsed.date) {
-    dueDate = addDays(today, parsed.date.daysFromToday);
-  } else if (parsed.date) {
-    // The next occurrence strictly after today.
-    dueDate = nextOnOrAfter(addDays(today, 1), [parsed.date.weekday]);
+export function resolveQuickAdd(parsed: QuickAddResult, rowDate: IsoDate | null, today: IsoDate): QuickAddTask {
+  let dueDate = requestedDate(parsed.date, today) ?? rowDate;
+  if (dueDate === null && parsed.repeat) dueDate = today;
+  const recurrence = ruleFor(parsed.repeat, dueDate ?? today);
+  if (dueDate !== null && (recurrence.type === 'weekly' || recurrence.type === 'monthly')) {
+    // Start on a day the task actually repeats on: the first one after the day before.
+    const dayBefore = addDays(dueDate, -1);
+    dueDate = nextDueDate(recurrence, { dueDate: dayBefore, completedOn: dayBefore }) ?? dueDate;
   }
 
-  let recurrence: Recurrence = { type: 'none' };
-  if (parsed.repeat?.type === 'daily') {
-    recurrence = { type: 'daily' };
-  } else if (parsed.repeat?.type === 'weekly') {
-    const daysOfWeek = parsed.repeat.daysOfWeek ?? [dayOfWeek(dueDate)];
-    // Start on a day the task actually repeats on.
-    dueDate = nextOnOrAfter(dueDate, daysOfWeek);
-    recurrence = { type: 'weekly', daysOfWeek };
-  }
+  return {
+    title: parsed.title,
+    dueDate,
+    dueTime: parsed.dueTime ?? null,
+    priority: parsed.priority,
+    recurrence,
+    labelIds: parsed.labelIds ?? [],
+  };
+}
 
-  return { title: parsed.title, dueDate, dueTime: parsed.dueTime ?? null, priority: parsed.priority, recurrence };
+const DAY_LETTER_ORDER = 'MTWHFSU';
+
+/** A rule as its $$ symbol, or null when the task does not repeat. The reverse of parseRepeat. */
+function formatRepeat(rule: Recurrence): string | null {
+  switch (rule.type) {
+    case 'none':
+      return null;
+    case 'daily':
+      return '$$Daily';
+    case 'weekly': {
+      const letters = [...DAY_LETTER_ORDER].filter((l) => rule.daysOfWeek.includes(DAY_LETTERS[l.toLowerCase()]!));
+      return `$$Weekly:${letters.join('')}`;
+    }
+    case 'monthly': {
+      const days = [...new Set(rule.daysOfMonth)].sort((a, b) => a - b);
+      return `$$Monthly:${[...days, ...ANCHOR_WORDS.filter((anchor) => rule.anchors.includes(anchor))].join(',')}`;
+    }
+    case 'interval':
+      return `$$X:${rule.intervalDays}`;
+  }
+}
+
+type EditableTask = Pick<TaskDto, 'title' | 'priority' | 'dueDate' | 'dueTime' | 'recurrence' | 'labels'>;
+
+/**
+ * A task as the quick-add text that describes it, to start an in-place edit from:
+ * its title followed by the symbols for its priority, time, repeat and labels.
+ * The day is left out, because ** can only say where to move a task to.
+ */
+export function formatQuickEdit(task: EditableTask): string {
+  const [hour = '', minute = ''] = task.dueTime?.split(':') ?? [];
+  return [
+    task.title,
+    `!!${task.priority}`,
+    task.dueTime && `%%${Number(hour)}:${minute}`,
+    formatRepeat(task.recurrence),
+    ...task.labels.map((label) => `##${label.name.replace(/\s+/g, '')}`),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * Turns the text of an in-place edit (see formatQuickEdit) into the changes to save.
+ * The text describes the whole task apart from its day: taking a symbol out clears
+ * that field (no time, no repeat, no labels, the default priority), and an empty title
+ * keeps the current one. A day symbol moves the task, and a task without a date that is
+ * made to repeat gets today's. The result is empty when nothing would change.
+ */
+export function resolveQuickEdit(parsed: QuickAddResult, task: EditableTask, today: IsoDate): UpdateTaskInput {
+  const changes: UpdateTaskInput = {};
+  if (parsed.title && parsed.title !== task.title) changes.title = parsed.title;
+
+  const priority = parsed.priority ?? DEFAULT_PRIORITY;
+  if (priority !== task.priority) changes.priority = priority;
+
+  const dueTime = parsed.dueTime ?? null;
+  if (dueTime !== task.dueTime) changes.dueTime = dueTime;
+
+  const dueDate = requestedDate(parsed.date, today);
+  if (dueDate && dueDate !== task.dueDate) changes.dueDate = dueDate;
+
+  // Unlike resolveQuickAdd, the task is not moved onto a day it repeats on: that would count as a reschedule.
+  const recurrence = ruleFor(parsed.repeat, dueDate ?? task.dueDate ?? today);
+  if (formatRepeat(recurrence) !== formatRepeat(task.recurrence)) changes.recurrence = recurrence;
+  if (recurrence.type !== 'none' && !dueDate && task.dueDate === null) changes.dueDate = today;
+
+  const labelIds = parsed.labelIds ?? [];
+  const current = task.labels.map((label) => label.id);
+  if (labelIds.length !== current.length || labelIds.some((id) => !current.includes(id))) changes.labelIds = labelIds;
+  return changes;
 }
 
 function nextOnOrAfter(date: IsoDate, weekdays: number[]): IsoDate {
